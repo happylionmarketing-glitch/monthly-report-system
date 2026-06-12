@@ -1,0 +1,425 @@
+{
+  "metadata": {
+    "branchName": "樂獅英語新竹二重分校",
+    "systemName": "月報填報系統"
+  },
+  "users": [
+    {
+      "id": "u-manager-jack",
+      "account": "jack",
+      "passwordHash": "e634850fec02115fb1e289adbbd86de0:b1c2a2f52e75bb615b247523c545374ac2ef3c2e6363f5e3dca4d80770379422234b2879b706049e4600f0790511841d08b1ac3a0cfefa6609f4db684590ccbc",
+      "name": "Tr.Jack",
+      "role": "manager",
+      "branch": "新竹二重分校",
+      "startDate": "2021-09-01",
+      "title": "主任"
+    },
+    {
+      "id": "u-teacher-claire",
+      "account": "claire",
+      "passwordHash": "e634850fec02115fb1e289adbbd86de0:bb83bd66ed028cf467a9fddb02714baa67c67eb3157087299fd21b92d05321601375b1d75ef2100a66ff9ff93a600dc80a98d9a64ad292a318a46714f058428f",
+      "name": "Claire",
+      "role": "teacher",
+      "branch": "新竹二重分校",
+      "startDate": "2024-08-01",
+      "title": "英語老師",
+      "defaultClassAssignments": [
+        {
+          "id": "class-1-9a56bevd",
+          "className": "L8A",
+          "level": "L8A",
+          "courseType": "regular",
+          "studentCount": 0
+        },
+        {
+          "id": "class-2-n5kuqvqi",
+          "className": "H2B",
+          "level": "H2B",
+          "courseType": "regular",
+          "studentCount": 0
+        }
+      ]
+    },
+    {
+      "id": "u-teacher-ruby",
+      "account": "ruby",
+      "passwordHash": "e634850fec02115fb1e289adbbd86de0:4296636b2e4d9413c0a65f07df0401bb32635ee33bd6ca89adc800f2830036c9d10ec3416dada8fca6031046ea583ad12d4e450323ab9f5987d6df1705938e0d",
+      "name": "Ruby",
+      "role": "teacher",
+      "branch": "新竹二重分校",
+      "startDate": "2023-11-15",
+      "title": "英語老師",
+      "defaultClassAssignments": [
+        {
+          "id": "class-1-xgfh5p0e",
+          "className": "L10C",
+          "level": "L10C",
+          "courseType": "regular",
+          "studentCount": 0
+        },
+        {
+          "id": "class-2-q2ptjcb9",
+          "className": "AE18",
+          "level": "AE18",
+          "courseType": "regular",
+          "studentCount": 0
+        }
+      ]
+    },
+    {
+      "id": "u-admin-crystal",
+      "account": "crystal",
+      "passwordHash": "e634850fec02115fb1e289adbbd86de0:80a0ccb051f638fccd5921d1f7cf972cb49e82d7d8b1ed3b1e272a3556163e403c3c0678799fccdb1bcfb9496619ddca80d8d7e5b2e39a5cdc47299f2cc8f3fc",
+      "name": "Crystal",
+      "role": "admin",
+      "branch": "新竹二重分校",
+      "startDate": "2024-03-10",
+      "title": "行政老師"
+    },
+    {
+      "id": "u-admin-sally",
+      "account": "sally",
+      "passwordHash": "e634850fec02115fb1e289adbbd86de0:91a8632aee4ce0179c63a3851da3c097b66d30c3a1cfbfadc1f532a88ce3456536105c2feb1b34da37ed1b6545a23e16d091a1f98d4407e80940065cebb002be",
+      "name": "Sally",
+      "role": "admin",
+      "branch": "新竹二重分校",
+      "startDate": "2022-06-01",
+      "title": "行政老師"
+    }
+  ],
+  "reports": [
+    {
+      "id": "r-2026-05-claire",
+      "userId": "u-teacher-claire",
+      "role": "teacher",
+      "month": "2026-05",
+      "branch": "新竹二重分校",
+      "status": "reviewed",
+      "updatedAt": "2026-05-31T18:20:00.000Z",
+      "submittedAt": "2026-05-31T18:00:00.000Z",
+      "reviewerNote": "帶班穩定，請下月補強招生轉換率。",
+      "reviewHistory": [
+        {
+          "id": "rh-ga3nx15o",
+          "status": "reviewed",
+          "reviewerId": "u-manager-jack",
+          "reviewerName": "Tr.Jack",
+          "reviewerNote": "帶班穩定，請下月補強招生轉換率。",
+          "reviewedAt": "2026-05-31T18:00:00.000Z"
+        }
+      ],
+      "scores": {
+        "performance": 4.9,
+        "selfEvaluation": 8.8,
+        "execution": null,
+        "overall": 6.9
+      },
+      "data": {
+        "classAssignments": [
+          {
+            "id": "class-1-9a56bevd",
+            "className": "L8A",
+            "level": "L8A",
+            "courseType": "regular",
+            "studentCount": 0
+          },
+          {
+            "id": "class-2-n5kuqvqi",
+            "className": "H2B",
+            "level": "H2B",
+            "courseType": "regular",
+            "studentCount": 0
+          }
+        ],
+        "attendanceRecords": [
+          {
+            "id": "attendance-personal-zfs9s759",
+            "category": "personal",
+            "date": "",
+            "days": 1,
+            "hours": 0,
+            "note": "舊資料匯入"
+          }
+        ],
+        "teachingRecords": [
+          {
+            "id": "work-makeup-dsfuw3yu",
+            "category": "student_makeup",
+            "date": "",
+            "className": "",
+            "level": "",
+            "hours": 2,
+            "note": "舊資料匯入"
+          },
+          {
+            "id": "work-substitute-1-jhb6ji01",
+            "category": "substitute_for_other",
+            "date": "",
+            "className": "",
+            "level": "",
+            "hours": 0,
+            "note": "舊資料匯入"
+          },
+          {
+            "id": "work-training-240oweu9",
+            "category": "training_attended",
+            "date": "",
+            "className": "",
+            "level": "",
+            "hours": 5,
+            "note": "舊資料匯入"
+          },
+          {
+            "id": "work-activity-hcuukj2h",
+            "category": "activity_hosted",
+            "date": "",
+            "className": "",
+            "level": "",
+            "hours": 0,
+            "note": "母親節活動、L8 家說會"
+          }
+        ],
+        "performanceMetrics": {
+          "trialStudents": 5,
+          "convertedStudents": 3,
+          "gradeTestStudents": 4,
+          "homeworkErrorRate": 0,
+          "phoneSupportSuccessRate": 0,
+          "inquiryStudentCount": 0,
+          "unavoidableLosses": 1,
+          "unavoidableLossNotes": "",
+          "avoidableLosses": 0,
+          "avoidableLossNotes": ""
+        },
+        "complaints": "",
+        "complaintHandling": "",
+        "reflection": {
+          "wins": "班級秩序與家長溝通都有穩定提升。",
+          "fixes": "試讀後追蹤話術還可以更精準。",
+          "upwardFeedback": "希望有更完整的英檢班轉換話術。",
+          "teamPraise": "感謝 Crystal 協助家長櫃詢轉單。",
+          "nextMonthGoal": "試讀轉換至少 4 位，訓練時數維持 4 小時以上。",
+          "selfEvaluation": 8.8,
+          "selfEvaluationReason": ""
+        }
+      }
+    },
+    {
+      "id": "r-2026-05-crystal",
+      "userId": "u-admin-crystal",
+      "role": "admin",
+      "month": "2026-05",
+      "branch": "新竹二重分校",
+      "status": "submitted",
+      "updatedAt": "2026-05-30T17:40:00.000Z",
+      "submittedAt": "2026-05-30T17:40:00.000Z",
+      "reviewerNote": "",
+      "reviewHistory": [],
+      "scores": {
+        "performance": 8.3,
+        "selfEvaluation": 8.4,
+        "execution": 8.6,
+        "overall": 8.4
+      },
+      "data": {
+        "attendanceRecords": [
+          {
+            "id": "attendance-late-1-u0bmgpxw",
+            "category": "late",
+            "date": "",
+            "days": 0,
+            "hours": 0,
+            "note": "舊資料匯入"
+          }
+        ],
+        "performanceMetrics": {
+          "newEnrollments": 0,
+          "inquiryCount": 7,
+          "callCount": 18,
+          "conversionRate": 71,
+          "posterCompleted": true,
+          "campusFamiliarityRate": 85,
+          "formChecklist": {
+            "overdueNotice": false,
+            "weeklyHeadcount": true,
+            "monthEndHeadcount": true,
+            "tuitionBag": true
+          }
+        },
+        "reflection": {
+          "wins": "月底統計與學費袋製作都在時程內完成。",
+          "fixes": "Call 班回覆紀錄格式需要再一致。",
+          "upwardFeedback": "希望後續可整合櫃詢追蹤清單。",
+          "teamPraise": "感謝 Sally 支援週六櫃台值班。",
+          "nextMonthGoal": "櫃詢成功率提升到 75%，Call 班至少 20 通。",
+          "selfEvaluation": 8.4,
+          "selfEvaluationReason": "",
+          "execution": 8.6,
+          "executionReason": ""
+        }
+      }
+    },
+    {
+      "id": "r-2026-06-ruby",
+      "userId": "u-teacher-ruby",
+      "role": "teacher",
+      "month": "2026-06",
+      "branch": "新竹二重分校",
+      "status": "draft",
+      "updatedAt": "2026-06-10T11:30:00.000Z",
+      "submittedAt": null,
+      "reviewerNote": "",
+      "reviewHistory": [],
+      "scores": {
+        "performance": 2.2,
+        "selfEvaluation": 8,
+        "execution": null,
+        "overall": 5.1
+      },
+      "data": {
+        "classAssignments": [
+          {
+            "id": "class-1-xgfh5p0e",
+            "className": "L10C",
+            "level": "L10C",
+            "courseType": "regular",
+            "studentCount": 0
+          },
+          {
+            "id": "class-2-q2ptjcb9",
+            "className": "AE18",
+            "level": "AE18",
+            "courseType": "regular",
+            "studentCount": 0
+          }
+        ],
+        "attendanceRecords": [],
+        "teachingRecords": [
+          {
+            "id": "work-makeup-x4ix7axl",
+            "category": "student_makeup",
+            "date": "",
+            "className": "",
+            "level": "",
+            "hours": 1,
+            "note": "舊資料匯入"
+          },
+          {
+            "id": "work-substitute-1-s0kzgwfw",
+            "category": "substitute_for_other",
+            "date": "",
+            "className": "",
+            "level": "",
+            "hours": 0,
+            "note": "舊資料匯入"
+          },
+          {
+            "id": "work-substitute-2-eu6g2u3h",
+            "category": "substitute_for_other",
+            "date": "",
+            "className": "",
+            "level": "",
+            "hours": 0,
+            "note": "舊資料匯入"
+          },
+          {
+            "id": "work-training-e587plqv",
+            "category": "training_attended",
+            "date": "",
+            "className": "",
+            "level": "",
+            "hours": 3,
+            "note": "舊資料匯入"
+          },
+          {
+            "id": "work-activity-ityahmdc",
+            "category": "activity_hosted",
+            "date": "",
+            "className": "",
+            "level": "",
+            "hours": 0,
+            "note": "期中考家長提醒"
+          }
+        ],
+        "performanceMetrics": {
+          "trialStudents": 2,
+          "convertedStudents": 1,
+          "gradeTestStudents": 2,
+          "homeworkErrorRate": 0,
+          "phoneSupportSuccessRate": 0,
+          "inquiryStudentCount": 0,
+          "unavoidableLosses": 0,
+          "unavoidableLossNotes": "",
+          "avoidableLosses": 1,
+          "avoidableLossNotes": ""
+        },
+        "complaints": "",
+        "complaintHandling": "",
+        "reflection": {
+          "wins": "班級默寫表現比上月穩定。",
+          "fixes": "個別學生補課安排需要更提早追蹤。",
+          "upwardFeedback": "",
+          "teamPraise": "感謝 Claire 支援代課。",
+          "nextMonthGoal": "降低可抗流失，補課記錄完整率 100%。",
+          "selfEvaluation": 8,
+          "selfEvaluationReason": ""
+        }
+      }
+    },
+    {
+      "id": "r-2026-06-u-admin-crystal",
+      "userId": "u-admin-crystal",
+      "role": "admin",
+      "month": "2026-06",
+      "branch": "新竹二重分校",
+      "status": "needs_revision",
+      "updatedAt": "2026-06-12T02:29:27.236Z",
+      "submittedAt": "2026-06-11T20:52:08.582Z",
+      "reviewerNote": "請補上本月櫃詢進班數據與特休紀錄，格式再確認一次。",
+      "reviewHistory": [
+        {
+          "id": "rh-kxvoucd3",
+          "status": "needs_revision",
+          "reviewerId": "u-manager-jack",
+          "reviewerName": "Tr.Jack",
+          "reviewerNote": "請補上本月櫃詢進班數據與特休紀錄，格式再確認一次。",
+          "reviewedAt": "2026-06-11T20:52:08.582Z"
+        }
+      ],
+      "scores": {
+        "performance": 0,
+        "selfEvaluation": 7.2,
+        "execution": 0,
+        "overall": 2.4
+      },
+      "data": {
+        "attendanceRecords": [],
+        "performanceMetrics": {
+          "newEnrollments": 0,
+          "inquiryCount": 0,
+          "callCount": 0,
+          "conversionRate": 0,
+          "posterCompleted": false,
+          "campusFamiliarityRate": 0,
+          "formChecklist": {
+            "overdueNotice": false,
+            "weeklyHeadcount": false,
+            "monthEndHeadcount": false,
+            "tuitionBag": false
+          }
+        },
+        "reflection": {
+          "wins": "",
+          "fixes": "",
+          "upwardFeedback": "",
+          "teamPraise": "",
+          "nextMonthGoal": "",
+          "selfEvaluation": 7.2,
+          "selfEvaluationReason": "",
+          "execution": 0,
+          "executionReason": ""
+        }
+      }
+    }
+  ]
+}
