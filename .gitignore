@@ -10,6 +10,11 @@ desktop.ini
 g-export.pdf
 server*.out.log
 server*.err.log
+SMART_IO.CRD
+.SMART_IO.CRD
+.clasp.json
+apps-script/.clasp.json
+apps-script/20260625-移機說明-*.md
 
 node_modules
 dist

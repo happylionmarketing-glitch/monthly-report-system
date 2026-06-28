@@ -1,5 +1,10 @@
 # React + TypeScript + Vite
 
+## Google Apps Script 版
+
+如果你要部署到 Google Apps Script，請直接看 `apps-script/` 資料夾。
+那裡已經整理好 `Code.gs`、`Index.html`、`appsscript.json`，可以直接貼到 Apps Script 專案中部署。
+
 This template provides a minimal setup to get React working in Vite with HMR and some ESLint rules.
 
 Currently, two official plugins are available:
