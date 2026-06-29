@@ -743,7 +743,7 @@ function setupDatabase_(spreadsheet) {
   replaceTable_(reportsSheet, [
     'id', 'userId', 'role', 'month', 'branch', 'status', 'updatedAt', 'submittedAt', 'reviewerNote', 'reviewHistoryJson', 'dataJson', 'scoresJson',
   ], []);
-  replaceTable_(spreadsheet.getSheetByName('NotificationLogs'), NOTIFICATION_LOG_HEADERS, []);
+  replaceTable_(notificationLogsSheet, NOTIFICATION_LOG_HEADERS, []);
 }
 
 function setupMissingSheets_(spreadsheet) {
@@ -842,6 +842,7 @@ function loadState_() {
   const usersSheet = spreadsheet.getSheetByName('Users');
   const settingsSheet = spreadsheet.getSheetByName('Settings');
   const reportsSheet = spreadsheet.getSheetByName('Reports');
+  const notificationLogsSheet = spreadsheet.getSheetByName('NotificationLogs') || spreadsheet.insertSheet('NotificationLogs');
 
   const settingsRows = readTable_(settingsSheet);
   const metadata = {
