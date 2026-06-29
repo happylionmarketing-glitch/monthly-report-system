@@ -31,6 +31,26 @@ const USER_HEADERS = [
   'teachingHourlyRate',
   'adminHourlyRate',
   'contractEndDate',
+  'email',
+  'notifyByEmail',
+  'isNotificationReceiver',
+];
+
+const NOTIFICATION_LOG_HEADERS = [
+  'id',
+  'reportId',
+  'month',
+  'senderUserId',
+  'senderName',
+  'receiverUserId',
+  'receiverName',
+  'channel',
+  'target',
+  'status',
+  'subject',
+  'message',
+  'errorMessage',
+  'createdAt',
 ];
 
 const USER_SEED = [
@@ -194,6 +214,7 @@ function bootstrap(token, month) {
       : buildPersonalDashboard_(activeMonth, state.reports, session.user),
     referenceDashboard: null,
     permissionMatrix: buildPermissionMatrix_(),
+    notificationLogs: isManagerRole ? (state.notificationLogs || []).slice(-20).reverse() : [],
     recentReports: state.reports
       .filter((report) => isManagerRole ? normalizeMonthKey_(report.month) === activeMonth : report.userId === session.user.id)
       .map((report) => decorateReport_(report, state.users))
@@ -326,6 +347,7 @@ function saveReport(token, payload) {
     reviewHistory: Array.isArray(payload.reviewHistory) ? payload.reviewHistory : existing?.reviewHistory || [],
     reviewerNote: String(payload.reviewerNote || ''),
   }, state.users);
+  const shouldNotifySubmission = shouldNotifyReportSubmission_(existing, nextReport);
 
   if (existingIndex >= 0) {
     state.reports[existingIndex] = nextReport;
@@ -334,7 +356,15 @@ function saveReport(token, payload) {
   }
 
   saveState_(state);
-  return jsonResult_(decorateReport_(nextReport, state.users));
+  let notificationSummary = null;
+  if (shouldNotifySubmission) {
+    notificationSummary = notifyManagersForSubmittedReport_(state, nextReport, targetUser, session.user);
+    saveState_(state);
+  }
+  return jsonResult_({
+    ...decorateReport_(nextReport, state.users),
+    notificationSummary,
+  });
 }
 
 function reviewReport(token, reportId, status, reviewerNote) {
@@ -677,6 +707,7 @@ function setupDatabase_(spreadsheet) {
   const usersSheet = spreadsheet.getSheetByName('Users');
   const settingsSheet = spreadsheet.getSheetByName('Settings');
   const reportsSheet = spreadsheet.getSheetByName('Reports');
+  const notificationLogsSheet = spreadsheet.getSheetByName('NotificationLogs') || spreadsheet.insertSheet('NotificationLogs');
 
   replaceTable_(usersSheet, USER_HEADERS, USER_SEED.map((user) => [
     user.id,
@@ -694,6 +725,9 @@ function setupDatabase_(spreadsheet) {
     user.teachingHourlyRate || '',
     user.adminHourlyRate || '',
     user.contractEndDate || '',
+    user.email || '',
+    user.notifyByEmail === false ? false : true,
+    user.isNotificationReceiver === false ? false : user.role === 'manager',
   ]));
 
   replaceTable_(settingsSheet, ['key', 'value'], [
@@ -705,6 +739,7 @@ function setupDatabase_(spreadsheet) {
   replaceTable_(reportsSheet, [
     'id', 'userId', 'role', 'month', 'branch', 'status', 'updatedAt', 'submittedAt', 'reviewerNote', 'reviewHistoryJson', 'dataJson', 'scoresJson',
   ], []);
+  replaceTable_(spreadsheet.getSheetByName('NotificationLogs'), NOTIFICATION_LOG_HEADERS, []);
 }
 
 function setupMissingSheets_(spreadsheet) {
@@ -725,6 +760,7 @@ function setupMissingSheets_(spreadsheet) {
 
   ensure('Users', USER_HEADERS);
   ensure('Reports', ['id', 'userId', 'role', 'month', 'branch', 'status', 'updatedAt', 'submittedAt', 'reviewerNote', 'reviewHistoryJson', 'dataJson', 'scoresJson']);
+  ensure('NotificationLogs', NOTIFICATION_LOG_HEADERS);
   ensure('Settings', ['key', 'value']);
   ensure('Reference_WeeklyRecords', []);
   ensure('Reference_WeeklyDrafts', []);
@@ -757,6 +793,9 @@ function ensureUsersSeed_(spreadsheet) {
     user.teachingHourlyRate || '',
     user.adminHourlyRate || '',
     user.contractEndDate || '',
+    user.email || '',
+    user.notifyByEmail === false ? false : true,
+    user.isNotificationReceiver === false ? false : user.role === 'manager',
   ]));
 }
 
@@ -819,6 +858,13 @@ function loadState_() {
     teachingHourlyRate: Number(row.teachingHourlyRate || 0),
     adminHourlyRate: Number(row.adminHourlyRate || 0),
     contractEndDate: row.contractEndDate || '',
+    email: String(row.email || '').trim(),
+    notifyByEmail: row.notifyByEmail === undefined || row.notifyByEmail === null || row.notifyByEmail === ''
+      ? true
+      : String(row.notifyByEmail).toLowerCase() !== 'false',
+    isNotificationReceiver: row.isNotificationReceiver === undefined || row.isNotificationReceiver === null || row.isNotificationReceiver === ''
+      ? row.role === 'manager'
+      : String(row.isNotificationReceiver).toLowerCase() !== 'false',
     mustChangePassword: row.mustChangePassword === undefined || row.mustChangePassword === null || row.mustChangePassword === ''
       ? defaultMustChangePassword_(row.account)
       : String(row.mustChangePassword).toLowerCase() !== 'false',
@@ -840,7 +886,24 @@ function loadState_() {
     scores: parseJson_(row.scoresJson, { performance: 0, selfEvaluation: 0, execution: null, overall: 0 }),
   }, users));
 
-  return { metadata, users, reports };
+  const notificationLogs = readTable_(notificationLogsSheet).map((row) => ({
+    id: row.id || Utilities.getUuid(),
+    reportId: row.reportId || '',
+    month: normalizeMonthKey_(row.month || currentMonth_()),
+    senderUserId: row.senderUserId || '',
+    senderName: row.senderName || '',
+    receiverUserId: row.receiverUserId || '',
+    receiverName: row.receiverName || '',
+    channel: row.channel || 'email',
+    target: row.target || '',
+    status: row.status || '',
+    subject: row.subject || '',
+    message: row.message || '',
+    errorMessage: row.errorMessage || '',
+    createdAt: row.createdAt || '',
+  }));
+
+  return { metadata, users, reports, notificationLogs };
 }
 
 function loadReferenceDashboard_(month) {
@@ -975,6 +1038,7 @@ function saveState_(state) {
   const usersSheet = spreadsheet.getSheetByName('Users');
   const settingsSheet = spreadsheet.getSheetByName('Settings');
   const reportsSheet = spreadsheet.getSheetByName('Reports');
+  const notificationLogsSheet = spreadsheet.getSheetByName('NotificationLogs') || spreadsheet.insertSheet('NotificationLogs');
 
   replaceTable_(usersSheet, USER_HEADERS, state.users.map((user) => [
     user.id,
@@ -992,6 +1056,9 @@ function saveState_(state) {
     user.teachingHourlyRate || '',
     user.adminHourlyRate || '',
     user.contractEndDate || '',
+    user.email || '',
+    user.notifyByEmail === false ? false : true,
+    user.isNotificationReceiver === false ? false : user.role === 'manager',
   ]));
 
   replaceTable_(settingsSheet, ['key', 'value'], [
@@ -1014,6 +1081,200 @@ function saveState_(state) {
     JSON.stringify(report.data || {}),
     JSON.stringify(report.scores || {}),
   ]));
+
+  replaceTable_(notificationLogsSheet, NOTIFICATION_LOG_HEADERS, (state.notificationLogs || []).slice(-500).map((log) => [
+    log.id,
+    log.reportId,
+    normalizeMonthKey_(log.month),
+    log.senderUserId || '',
+    log.senderName || '',
+    log.receiverUserId || '',
+    log.receiverName || '',
+    log.channel || 'email',
+    log.target || '',
+    log.status || '',
+    log.subject || '',
+    log.message || '',
+    log.errorMessage || '',
+    log.createdAt || '',
+  ]));
+}
+
+function shouldNotifyReportSubmission_(previousReport, nextReport) {
+  return nextReport
+    && nextReport.status === 'submitted'
+    && (!previousReport || previousReport.status !== 'submitted');
+}
+
+function notifyManagersForSubmittedReport_(state, report, reportUser, actorUser) {
+  const recipients = getManagerNotificationRecipients_(state, report);
+  const subject = `[${META.schoolTitle}] ${reportUser.name} 已送出 ${report.month} 月報，請主管簽核`;
+  const detailUrl = getWebAppUrl_();
+  const roleName = labelRole_(report.role, report);
+  const submittedAt = report.submittedAt || report.updatedAt || new Date().toISOString();
+  const overallScore = report.scores && report.scores.overall !== undefined ? report.scores.overall : '';
+  const selfScore = report.scores && report.scores.selfEvaluation !== undefined ? report.scores.selfEvaluation : '';
+  const plainMessage = [
+    `${reportUser.name} 已送出 ${report.month} 月報，請主管登入系統查看並簽核。`,
+    '',
+    `分校：${report.branch || reportUser.branch || META.branchName}`,
+    `填表人：${reportUser.name}`,
+    `身份：${roleName}`,
+    `月份：${report.month}`,
+    `送出時間：${submittedAt}`,
+    `月報總分：${overallScore}`,
+    `自評分數：${selfScore}`,
+    detailUrl ? `月報系統：${detailUrl}` : '月報系統：請開啟目前月報系統網址',
+  ].join('\n');
+  const htmlMessage = `
+    <div style="font-family:'Noto Sans TC','Microsoft JhengHei',Arial,sans-serif;line-height:1.7;color:#1f2937;">
+      <h2 style="margin:0 0 12px;">${escapeHtml_(META.schoolTitle)}｜月報簽核通知</h2>
+      <p>${escapeHtml_(reportUser.name)} 已送出 ${escapeHtml_(report.month)} 月報，請主管登入系統查看並簽核。</p>
+      <table style="border-collapse:collapse;width:100%;max-width:680px;">
+        ${emailRowHtml_('分校', report.branch || reportUser.branch || META.branchName)}
+        ${emailRowHtml_('填表人', reportUser.name)}
+        ${emailRowHtml_('身份', roleName)}
+        ${emailRowHtml_('月份', report.month)}
+        ${emailRowHtml_('送出時間', submittedAt)}
+        ${emailRowHtml_('月報總分', overallScore)}
+        ${emailRowHtml_('自評分數', selfScore)}
+      </table>
+      ${detailUrl ? `<p style="margin-top:18px;"><a href="${escapeHtml_(detailUrl)}" style="display:inline-block;background:#1d4ed8;color:white;text-decoration:none;padding:10px 16px;border-radius:10px;">開啟月報系統簽核</a></p>` : ''}
+      <p style="color:#6b7280;font-size:13px;">此信由月報填報系統自動寄出。</p>
+    </div>
+  `;
+
+  if (!recipients.length) {
+    appendNotificationLog_(state, {
+      report,
+      senderUser: actorUser,
+      receiverUser: null,
+      channel: 'email',
+      target: '',
+      status: 'skipped',
+      subject,
+      message: '月報已送出，但尚未設定主管 Email，因此未寄出通知。',
+      errorMessage: '',
+    });
+    return { ok: false, sent: 0, failed: 0, skipped: 1, message: '尚未設定主管 Email，未寄出通知。' };
+  }
+
+  const summary = { ok: true, sent: 0, failed: 0, skipped: 0, message: '' };
+  recipients.forEach((recipient) => {
+    try {
+      MailApp.sendEmail(recipient.email, subject, plainMessage, {
+        name: `${META.schoolTitle}月報系統`,
+        htmlBody: htmlMessage,
+      });
+      summary.sent += 1;
+      appendNotificationLog_(state, {
+        report,
+        senderUser: actorUser,
+        receiverUser: recipient.user,
+        channel: 'email',
+        target: recipient.email,
+        status: 'sent',
+        subject,
+        message: plainMessage,
+        errorMessage: '',
+      });
+    } catch (error) {
+      summary.failed += 1;
+      summary.ok = false;
+      appendNotificationLog_(state, {
+        report,
+        senderUser: actorUser,
+        receiverUser: recipient.user,
+        channel: 'email',
+        target: recipient.email,
+        status: 'failed',
+        subject,
+        message: plainMessage,
+        errorMessage: error && error.message ? error.message : String(error),
+      });
+    }
+  });
+  summary.message = `Email 通知完成：成功 ${summary.sent} 筆，失敗 ${summary.failed} 筆。`;
+  return summary;
+}
+
+function getManagerNotificationRecipients_(state, report) {
+  const recipients = [];
+  const seen = {};
+  const addRecipient = (email, user) => {
+    const normalizedEmail = String(email || '').trim();
+    if (!isValidEmail_(normalizedEmail)) return;
+    const key = normalizedEmail.toLowerCase();
+    if (seen[key]) return;
+    seen[key] = true;
+    recipients.push({ email: normalizedEmail, user: user || null });
+  };
+
+  (state.users || [])
+    .filter((user) => user.role === 'manager')
+    .filter((user) => user.notifyByEmail !== false)
+    .filter((user) => user.isNotificationReceiver !== false)
+    .filter((user) => !report.branch || !user.branch || String(user.branch) === String(report.branch))
+    .forEach((user) => addRecipient(user.email, user));
+
+  const fallbackEmails = PropertiesService
+    .getScriptProperties()
+    .getProperty('MONTHLY_REPORT_MANAGER_EMAILS');
+  String(fallbackEmails || '')
+    .split(/[,\n;\s]+/)
+    .map((email) => email.trim())
+    .filter(Boolean)
+    .forEach((email) => addRecipient(email, null));
+
+  return recipients;
+}
+
+function appendNotificationLog_(state, data) {
+  const now = new Date().toISOString();
+  const receiverUser = data.receiverUser || {};
+  const senderUser = data.senderUser || {};
+  state.notificationLogs = Array.isArray(state.notificationLogs) ? state.notificationLogs : [];
+  state.notificationLogs.push({
+    id: Utilities.getUuid(),
+    reportId: data.report?.id || '',
+    month: normalizeMonthKey_(data.report?.month || currentMonth_()),
+    senderUserId: senderUser.id || '',
+    senderName: senderUser.name || '',
+    receiverUserId: receiverUser.id || '',
+    receiverName: receiverUser.name || (data.target ? '主管' : ''),
+    channel: data.channel || 'email',
+    target: data.target || '',
+    status: data.status || '',
+    subject: data.subject || '',
+    message: data.message || '',
+    errorMessage: data.errorMessage || '',
+    createdAt: now,
+  });
+}
+
+function getWebAppUrl_() {
+  const propsUrl = PropertiesService.getScriptProperties().getProperty('MONTHLY_REPORT_WEB_APP_URL');
+  if (propsUrl) {
+    return propsUrl;
+  }
+  try {
+    return ScriptApp.getService().getUrl() || '';
+  } catch (error) {
+    return '';
+  }
+}
+
+function isValidEmail_(value) {
+  return /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(String(value || '').trim());
+}
+
+function emailRowHtml_(label, value) {
+  return `
+    <tr>
+      <th style="text-align:left;background:#f3f4f6;border:1px solid #e5e7eb;padding:8px 10px;width:140px;">${escapeHtml_(label)}</th>
+      <td style="border:1px solid #e5e7eb;padding:8px 10px;">${escapeHtml_(value ?? '')}</td>
+    </tr>
+  `;
 }
 
 function readTable_(sheet) {
@@ -1090,6 +1351,9 @@ function sanitizeUser_(user, reports) {
     title: user.title,
     staffCode: user.staffCode || '',
     duty: user.duty || user.title || '',
+    email: user.email || '',
+    notifyByEmail: user.notifyByEmail === false ? false : true,
+    isNotificationReceiver: user.isNotificationReceiver === false ? false : user.role === 'manager',
     teachingHourlyRate: Number(user.teachingHourlyRate || latestPartTimeContract?.teachingHourlyRate || 0),
     adminHourlyRate: Number(user.adminHourlyRate || latestPartTimeContract?.adminHourlyRate || 0),
     contractEndDate: user.contractEndDate || latestPartTimeContract?.contractEndDate || '',
@@ -1202,6 +1466,10 @@ function upsertUser(token, payload) {
   if (state.users.some((user) => user.id !== userId && String(user.account || '').trim().toLowerCase() === account)) {
     throw new Error('這個帳號已經存在');
   }
+  const email = String(data.email || previous?.email || '').trim();
+  if (email && !isValidEmail_(email)) {
+    throw new Error('Email 格式不正確');
+  }
 
   const nextUser = {
     ...(previous || {}),
@@ -1215,6 +1483,9 @@ function upsertUser(token, payload) {
     title: String(data.title || data.duty || previous?.title || '').trim(),
     staffCode: String(data.staffCode || '').trim(),
     duty: String(data.duty || data.title || '').trim(),
+    email,
+    notifyByEmail: data.notifyByEmail === false ? false : true,
+    isNotificationReceiver: data.isNotificationReceiver === false ? false : role === 'manager',
     teachingHourlyRate: Number(data.teachingHourlyRate || previous?.teachingHourlyRate || 0),
     adminHourlyRate: Number(data.adminHourlyRate || previous?.adminHourlyRate || 0),
     contractEndDate: String(data.contractEndDate || previous?.contractEndDate || '').trim(),
@@ -1333,6 +1604,9 @@ function importStaffUsersRows_(rows) {
       title: staff.duty || previous?.title || '',
       staffCode: staff.staffCode,
       duty: staff.duty || previous?.duty || previous?.title || '',
+      email: previous ? previous.email || '' : '',
+      notifyByEmail: previous ? previous.notifyByEmail !== false : true,
+      isNotificationReceiver: previous ? previous.isNotificationReceiver !== false : role === 'manager',
       mustChangePassword: previous ? Boolean(previous.mustChangePassword) : true,
       defaultClassAssignments: previous ? previous.defaultClassAssignments || [] : [],
     };

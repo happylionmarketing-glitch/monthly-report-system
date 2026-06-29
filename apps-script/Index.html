@@ -715,6 +715,20 @@
                     <input id="userEditBranch" placeholder="樂獅英語-新竹二重分校">
                   </div>
                   <div class="field">
+                    <span>Email 通知信箱</span>
+                    <input id="userEditEmail" type="email" placeholder="主管簽核通知收件信箱">
+                  </div>
+                  <div class="grid-2">
+                    <label class="field" style="display:flex; gap:10px; align-items:center;">
+                      <input id="userEditNotifyByEmail" type="checkbox" checked>
+                      <span>接收 Email 通知</span>
+                    </label>
+                    <label class="field" style="display:flex; gap:10px; align-items:center;">
+                      <input id="userEditNotificationReceiver" type="checkbox">
+                      <span>主管簽核通知接收者</span>
+                    </label>
+                  </div>
+                  <div class="field">
                     <span>新密碼</span>
                     <input id="userEditPassword" type="password" placeholder="新增必填；修改時留空代表不變更">
                   </div>
@@ -736,6 +750,7 @@
                   <div id="userAdminMessage" class="message hidden"></div>
                 </div>
               </div>
+              <div id="notificationLogsPanel" style="margin-top:18px;"></div>
             </div>
           </section>
       </main>
@@ -946,7 +961,7 @@
       function setUserAdminLoading(isLoading, text = '正在寫入帳號資料，請稍候...') {
         $('userAdminLoading').classList.toggle('hidden', !isLoading);
         $('userAdminLoadingText').textContent = text;
-        ['newUserBtn', 'saveUserBtn', 'deleteUserBtn', 'userEditorSelect', 'userEditName', 'userEditAccount', 'userEditRole', 'userEditStaffCode', 'userEditDuty', 'userEditTeachingRate', 'userEditAdminRate', 'userEditContractEndDate', 'userEditBranch', 'userEditPassword', 'userEditForceChange']
+        ['newUserBtn', 'saveUserBtn', 'deleteUserBtn', 'userEditorSelect', 'userEditName', 'userEditAccount', 'userEditRole', 'userEditStaffCode', 'userEditDuty', 'userEditTeachingRate', 'userEditAdminRate', 'userEditContractEndDate', 'userEditBranch', 'userEditEmail', 'userEditNotifyByEmail', 'userEditNotificationReceiver', 'userEditPassword', 'userEditForceChange']
           .forEach((id) => {
             const el = $(id);
             if (el) el.disabled = isLoading;
@@ -2287,6 +2302,8 @@
             <td>${escapeHtml(labels.role[user.role] || user.role || '')}</td>
             <td>${escapeHtml(user.staffCode || '')}</td>
             <td>${escapeHtml(user.duty || user.title || '')}</td>
+            <td>${escapeHtml(user.email || '')}</td>
+            <td>${user.notifyByEmail === false ? '否' : '是'} / ${user.isNotificationReceiver === false ? '否' : '是'}</td>
             <td>${user.teachingHourlyRate || ''} / ${user.adminHourlyRate || ''}</td>
             <td>${escapeHtml(user.contractEndDate || '')}</td>
             <td>${user.mustChangePassword ? '是' : '否'}</td>
@@ -2302,22 +2319,67 @@
                 <th>角色</th>
                 <th>人員代碼</th>
                 <th>職務</th>
+                <th>Email</th>
+                <th>Email通知 / 簽核接收</th>
                 <th>授課/教務時薪</th>
                 <th>合約到期</th>
                 <th>首次改密碼</th>
               </tr>
             </thead>
             <tbody>
-              ${listHtml || '<tr><td colspan="8">目前沒有使用者資料。</td></tr>'}
+              ${listHtml || '<tr><td colspan="10">目前沒有使用者資料。</td></tr>'}
             </tbody>
           </table>
         `;
+        renderNotificationLogs();
 
         $('userEditorSelect').innerHTML = users.map((user) => `<option value="${escapeHtml(user.id)}">${escapeHtml(user.name || user.account || user.id)}｜${escapeHtml(user.account || '')}</option>`).join('');
         if (users.length && !$('userEditorSelect').value) {
           $('userEditorSelect').value = users[0].id;
         }
         populateUserEditor();
+      }
+
+      function renderNotificationLogs() {
+        const logs = (state.bootstrap && Array.isArray(state.bootstrap.notificationLogs)) ? state.bootstrap.notificationLogs : [];
+        $('notificationLogsPanel').innerHTML = `
+          <div class="card-soft">
+            <strong>最近 Email 通知紀錄</strong>
+            <p class="muted" style="margin:6px 0 10px;">老師送出月報後，系統會記錄主管簽核通知是否寄出成功。</p>
+            <table>
+              <thead>
+                <tr>
+                  <th>時間</th>
+                  <th>月份</th>
+                  <th>填表人</th>
+                  <th>收件人</th>
+                  <th>狀態</th>
+                  <th>說明</th>
+                </tr>
+              </thead>
+              <tbody>
+                ${logs.map((log) => `
+                  <tr>
+                    <td>${escapeHtml(log.createdAt || '')}</td>
+                    <td>${escapeHtml(log.month || '')}</td>
+                    <td>${escapeHtml(log.senderName || '')}</td>
+                    <td>${escapeHtml(log.target || log.receiverName || '')}</td>
+                    <td>${escapeHtml(labelNotificationStatus(log.status))}</td>
+                    <td>${escapeHtml(log.errorMessage || log.subject || log.message || '')}</td>
+                  </tr>
+                `).join('') || '<tr><td colspan="6">目前沒有通知紀錄。</td></tr>'}
+              </tbody>
+            </table>
+          </div>
+        `;
+      }
+
+      function labelNotificationStatus(status) {
+        return {
+          sent: '已寄出',
+          failed: '寄送失敗',
+          skipped: '未寄出',
+        }[status] || status || '';
       }
 
       function renderPartTimeSettings() {
@@ -2380,6 +2442,9 @@
         $('userEditAdminRate').value = user ? user.adminHourlyRate || '' : '';
         $('userEditContractEndDate').value = user ? user.contractEndDate || '' : '';
         $('userEditBranch').value = user ? user.branch || '' : '';
+        $('userEditEmail').value = user ? user.email || '' : '';
+        $('userEditNotifyByEmail').checked = user ? user.notifyByEmail !== false : true;
+        $('userEditNotificationReceiver').checked = user ? user.isNotificationReceiver !== false : $('userEditRole').value === 'manager';
         $('userEditPassword').value = '';
         $('userEditForceChange').checked = user ? Boolean(user.mustChangePassword) : true;
       }
@@ -2395,6 +2460,9 @@
         $('userEditAdminRate').value = '';
         $('userEditContractEndDate').value = '';
         $('userEditBranch').value = state.bootstrap && state.bootstrap.metadata ? state.bootstrap.metadata.branchName || '' : '';
+        $('userEditEmail').value = '';
+        $('userEditNotifyByEmail').checked = true;
+        $('userEditNotificationReceiver').checked = false;
         $('userEditPassword').value = '';
         $('userEditForceChange').checked = true;
         setResetMessage('');
@@ -2404,7 +2472,10 @@
         try {
           state.report = prepareReportForSave(status);
           state.report = await call('saveReport', localStorage.getItem(tokenKey), state.report);
-          setMessage(status === 'draft' ? '草稿已儲存。' : '月報已送出。');
+          const notificationText = status === 'draft' || !state.report.notificationSummary
+            ? ''
+            : ` ${state.report.notificationSummary.message || ''}`;
+          setMessage(status === 'draft' ? '草稿已儲存。' : `月報已送出。${notificationText}`);
           await refreshAll();
         } catch (error) {
           setMessage(error.message || 'Save failed', 'err');
@@ -2607,6 +2678,13 @@
           setResetMessage('');
         };
 
+        $('userEditRole').onchange = () => {
+          if ($('userEditRole').value === 'manager') {
+            $('userEditNotificationReceiver').checked = true;
+            $('userEditNotifyByEmail').checked = true;
+          }
+        };
+
         $('newUserBtn').onclick = () => {
           clearUserEditorForNew();
         };
@@ -2631,6 +2709,9 @@
               adminHourlyRate: Number($('userEditAdminRate').value || 0),
               contractEndDate: $('userEditContractEndDate').value,
               branch: $('userEditBranch').value,
+              email: $('userEditEmail').value,
+              notifyByEmail: $('userEditNotifyByEmail').checked,
+              isNotificationReceiver: $('userEditNotificationReceiver').checked,
               password: $('userEditPassword').value,
               mustChangePassword: $('userEditForceChange').checked,
             };
