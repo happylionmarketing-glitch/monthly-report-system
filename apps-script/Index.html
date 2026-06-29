@@ -258,6 +258,59 @@
         padding: 8px 10px;
         white-space: normal;
       }
+      .user-admin-layout {
+        display: grid;
+        grid-template-columns: minmax(0, 1.05fr) minmax(360px, 0.95fr);
+        gap: 16px;
+        align-items: start;
+      }
+      .user-list-shell {
+        min-width: 0;
+        overflow-x: auto;
+        padding-bottom: 6px;
+      }
+      .user-list-table {
+        min-width: 760px;
+        table-layout: fixed;
+      }
+      .user-list-table th,
+      .user-list-table td {
+        font-size: 13px;
+        overflow-wrap: anywhere;
+      }
+      .user-list-table th:nth-child(1),
+      .user-list-table td:nth-child(1) { width: 82px; }
+      .user-list-table th:nth-child(2),
+      .user-list-table td:nth-child(2) { width: 70px; }
+      .user-list-table th:nth-child(3),
+      .user-list-table td:nth-child(3) { width: 58px; }
+      .user-list-table th:nth-child(4),
+      .user-list-table td:nth-child(4) { width: 72px; }
+      .user-list-table th:nth-child(5),
+      .user-list-table td:nth-child(5) { width: 54px; }
+      .user-list-table th:nth-child(6),
+      .user-list-table td:nth-child(6) { width: 142px; }
+      .user-list-table th:nth-child(7),
+      .user-list-table td:nth-child(7) { width: 170px; }
+      .user-list-table th:nth-child(8),
+      .user-list-table td:nth-child(8) { width: 84px; }
+      .user-list-table th:nth-child(9),
+      .user-list-table td:nth-child(9) { width: 72px; }
+      .user-list-table th:nth-child(10),
+      .user-list-table td:nth-child(10) { width: 84px; }
+      .user-list-table th:nth-child(11),
+      .user-list-table td:nth-child(11) { width: 72px; }
+      .truncate-cell {
+        display: inline-block;
+        max-width: 100%;
+        overflow: hidden;
+        text-overflow: ellipsis;
+        white-space: nowrap;
+        vertical-align: top;
+      }
+      .user-editor-card {
+        min-width: 0;
+      }
       #teacherSection .table-scroll table { font-size: 14px; }
       #teacherSection .teacher-class-table th:nth-child(1), #teacherSection .teacher-class-table td:nth-child(1) { width: 32%; }
       #teacherSection .teacher-class-table th:nth-child(2), #teacherSection .teacher-class-table td:nth-child(2) { width: 26%; }
@@ -345,7 +398,7 @@
       .modal-card .row-actions { justify-content: flex-start; }
       .hidden { display: none !important; }
       @media (max-width: 1024px) {
-        .app-header, .workbench { grid-template-columns: 1fr; }
+        .app-header, .workbench, .user-admin-layout { grid-template-columns: 1fr; }
         .context-rail { position: static; }
         .grid-4, .grid-2, .chip-grid { grid-template-columns: repeat(2, minmax(0, 1fr)); }
         .user-strip { justify-content: flex-start; }
@@ -354,6 +407,7 @@
         .main, .sidebar, .app-header { padding: 16px; }
         .topbar { flex-direction: column; }
         .grid-4, .grid-2, .chip-grid, .metrics-grid, .paired-fields, .confirm-grid, .score-row, .employee-card-grid { grid-template-columns: 1fr; }
+        .user-list-table { min-width: 680px; }
       }
     </style>
   </head>
@@ -671,11 +725,11 @@
             <div class="card">
               <strong>帳號清單與密碼管理</strong>
               <p class="muted" style="margin: 6px 0 14px;">這裡會列出目前 Users 資料表的帳號，主管可新增、修改、刪除使用者，也可以直接設定新密碼。</p>
-              <div class="grid-2">
+              <div class="user-admin-layout">
                 <div>
                   <div id="userListPanel"></div>
                 </div>
-                <div>
+                <div class="user-editor-card">
                   <div class="field">
                     <span>選擇帳號</span>
                     <select id="userEditorSelect"></select>
@@ -2312,8 +2366,8 @@
             <td>${escapeHtml(labels.role[user.role] || user.role || '')}</td>
             <td>${escapeHtml(user.staffCode || '')}</td>
             <td>${escapeHtml(user.duty || user.title || '')}</td>
-            <td>${escapeHtml(user.email || '')}</td>
-            <td>${escapeHtml(user.lineTargetId || '')}</td>
+            <td><span class="truncate-cell" title="${escapeHtml(user.email || '')}">${escapeHtml(user.email || '')}</span></td>
+            <td><span class="truncate-cell" title="${escapeHtml(user.lineTargetId || '')}">${escapeHtml(user.lineTargetId || '')}</span></td>
             <td>Email ${user.notifyByEmail === false ? '否' : '是'} / LINE ${user.notifyByLine === true ? '是' : '否'} / 接收 ${user.isNotificationReceiver === false ? '否' : '是'}</td>
             <td>${user.teachingHourlyRate || ''} / ${user.adminHourlyRate || ''}</td>
             <td>${escapeHtml(user.contractEndDate || '')}</td>
@@ -2322,7 +2376,8 @@
         `).join('');
 
         $('userListPanel').innerHTML = `
-          <table>
+          <div class="user-list-shell">
+          <table class="user-list-table">
             <thead>
               <tr>
                 <th>姓名</th>
@@ -2342,6 +2397,7 @@
               ${listHtml || '<tr><td colspan="11">目前沒有使用者資料。</td></tr>'}
             </tbody>
           </table>
+          </div>
         `;
         renderNotificationLogs();
 
