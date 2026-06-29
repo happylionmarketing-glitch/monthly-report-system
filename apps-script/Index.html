@@ -899,6 +899,8 @@
         report: null,
         reports: [],
         detail: null,
+        detailLoading: false,
+        detailError: '',
         pendingReview: null,
         view: 'fill',
         month: new Date().toISOString().slice(0, 7),
@@ -2298,14 +2300,49 @@
         `).join('') || '<div class="list-item">目前沒有月報。</div>';
         document.querySelectorAll('[data-open-report]').forEach((btn) => {
           btn.onclick = async () => {
-            const report = await call('getReport', localStorage.getItem(tokenKey), btn.getAttribute('data-open-report'));
-            state.detail = report;
+            const reportId = btn.getAttribute('data-open-report');
+            state.detail = null;
+            state.detailError = '';
+            state.detailLoading = true;
             renderDetail();
+            btn.disabled = true;
+            btn.textContent = '載入中...';
+            try {
+              const report = await call('getReport', localStorage.getItem(tokenKey), reportId);
+              state.detail = report;
+            } catch (error) {
+              state.detailError = error.message || '月報詳情載入失敗，請再試一次。';
+            } finally {
+              state.detailLoading = false;
+              btn.disabled = false;
+              btn.textContent = '查看';
+              renderDetail();
+            }
           };
         });
       }
 
       function renderDetail() {
+        if (state.detailLoading) {
+          $('detailPanel').innerHTML = `
+            <div class="list-item">
+              <div class="login-loading" style="justify-content:flex-start; margin-top: 0;">
+                <span class="spinner"></span>
+                <span>正在載入月報完整內容，請稍候...</span>
+              </div>
+              <small>系統正在讀取填報明細、審核紀錄與匯出資料。</small>
+            </div>
+          `;
+          return;
+        }
+        if (state.detailError) {
+          $('detailPanel').innerHTML = `
+            <div class="message err" style="display:block;">
+              ${escapeHtml(state.detailError)}
+            </div>
+          `;
+          return;
+        }
         const report = state.detail;
         if (!report) {
           $('detailPanel').innerHTML = '請先選擇一份月報。';
@@ -2611,6 +2648,8 @@
           state.report = null;
           state.reports = [];
           state.detail = null;
+          state.detailLoading = false;
+          state.detailError = '';
           renderHeader();
           renderNav();
           showPasswordModal();
@@ -2631,6 +2670,9 @@
         state.bootstrap = bootstrap;
         state.report = report;
         state.reports = reports;
+        state.detail = null;
+        state.detailLoading = false;
+        state.detailError = '';
         renderHeader();
         renderNav();
         renderMetricCards();
@@ -2750,6 +2792,8 @@
           state.report = null;
           state.reports = [];
           state.detail = null;
+          state.detailLoading = false;
+          state.detailError = '';
           state.mustChangePassword = false;
           showLogin();
         };
