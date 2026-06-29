@@ -33,6 +33,8 @@ const USER_HEADERS = [
   'contractEndDate',
   'email',
   'notifyByEmail',
+  'lineTargetId',
+  'notifyByLine',
   'isNotificationReceiver',
 ];
 
@@ -727,6 +729,8 @@ function setupDatabase_(spreadsheet) {
     user.contractEndDate || '',
     user.email || '',
     user.notifyByEmail === false ? false : true,
+    user.lineTargetId || '',
+    user.notifyByLine === true ? true : false,
     user.isNotificationReceiver === false ? false : user.role === 'manager',
   ]));
 
@@ -795,6 +799,8 @@ function ensureUsersSeed_(spreadsheet) {
     user.contractEndDate || '',
     user.email || '',
     user.notifyByEmail === false ? false : true,
+    user.lineTargetId || '',
+    user.notifyByLine === true ? true : false,
     user.isNotificationReceiver === false ? false : user.role === 'manager',
   ]));
 }
@@ -862,6 +868,10 @@ function loadState_() {
     notifyByEmail: row.notifyByEmail === undefined || row.notifyByEmail === null || row.notifyByEmail === ''
       ? true
       : String(row.notifyByEmail).toLowerCase() !== 'false',
+    lineTargetId: String(row.lineTargetId || '').trim(),
+    notifyByLine: row.notifyByLine === undefined || row.notifyByLine === null || row.notifyByLine === ''
+      ? false
+      : String(row.notifyByLine).toLowerCase() === 'true',
     isNotificationReceiver: row.isNotificationReceiver === undefined || row.isNotificationReceiver === null || row.isNotificationReceiver === ''
       ? row.role === 'manager'
       : String(row.isNotificationReceiver).toLowerCase() !== 'false',
@@ -1058,6 +1068,8 @@ function saveState_(state) {
     user.contractEndDate || '',
     user.email || '',
     user.notifyByEmail === false ? false : true,
+    user.lineTargetId || '',
+    user.notifyByLine === true ? true : false,
     user.isNotificationReceiver === false ? false : user.role === 'manager',
   ]));
 
@@ -1107,7 +1119,8 @@ function shouldNotifyReportSubmission_(previousReport, nextReport) {
 }
 
 function notifyManagersForSubmittedReport_(state, report, reportUser, actorUser) {
-  const recipients = getManagerNotificationRecipients_(state, report);
+  const emailRecipients = getManagerEmailNotificationRecipients_(state, report);
+  const lineRecipients = getManagerLineNotificationRecipients_(state, report);
   const subject = `[${META.schoolTitle}] ${reportUser.name} 已送出 ${report.month} 月報，請主管簽核`;
   const detailUrl = getWebAppUrl_();
   const roleName = labelRole_(report.role, report);
@@ -1126,6 +1139,15 @@ function notifyManagersForSubmittedReport_(state, report, reportUser, actorUser)
     `自評分數：${selfScore}`,
     detailUrl ? `月報系統：${detailUrl}` : '月報系統：請開啟目前月報系統網址',
   ].join('\n');
+  const lineMessage = [
+    `${META.schoolTitle}｜月報簽核通知`,
+    `${reportUser.name} 已送出 ${report.month} 月報，請主管簽核。`,
+    `身份：${roleName}`,
+    `分校：${report.branch || reportUser.branch || META.branchName}`,
+    `月報總分：${overallScore}`,
+    `自評分數：${selfScore}`,
+    detailUrl ? `月報系統：${detailUrl}` : '',
+  ].filter(Boolean).join('\n');
   const htmlMessage = `
     <div style="font-family:'Noto Sans TC','Microsoft JhengHei',Arial,sans-serif;line-height:1.7;color:#1f2937;">
       <h2 style="margin:0 0 12px;">${escapeHtml_(META.schoolTitle)}｜月報簽核通知</h2>
@@ -1144,7 +1166,15 @@ function notifyManagersForSubmittedReport_(state, report, reportUser, actorUser)
     </div>
   `;
 
-  if (!recipients.length) {
+  const summary = {
+    ok: true,
+    email: { sent: 0, failed: 0, skipped: 0 },
+    line: { sent: 0, failed: 0, skipped: 0 },
+    message: '',
+  };
+
+  if (!emailRecipients.length) {
+    summary.email.skipped += 1;
     appendNotificationLog_(state, {
       report,
       senderUser: actorUser,
@@ -1156,17 +1186,15 @@ function notifyManagersForSubmittedReport_(state, report, reportUser, actorUser)
       message: '月報已送出，但尚未設定主管 Email，因此未寄出通知。',
       errorMessage: '',
     });
-    return { ok: false, sent: 0, failed: 0, skipped: 1, message: '尚未設定主管 Email，未寄出通知。' };
   }
 
-  const summary = { ok: true, sent: 0, failed: 0, skipped: 0, message: '' };
-  recipients.forEach((recipient) => {
+  emailRecipients.forEach((recipient) => {
     try {
       MailApp.sendEmail(recipient.email, subject, plainMessage, {
         name: `${META.schoolTitle}月報系統`,
         htmlBody: htmlMessage,
       });
-      summary.sent += 1;
+      summary.email.sent += 1;
       appendNotificationLog_(state, {
         report,
         senderUser: actorUser,
@@ -1179,7 +1207,7 @@ function notifyManagersForSubmittedReport_(state, report, reportUser, actorUser)
         errorMessage: '',
       });
     } catch (error) {
-      summary.failed += 1;
+      summary.email.failed += 1;
       summary.ok = false;
       appendNotificationLog_(state, {
         report,
@@ -1194,11 +1222,77 @@ function notifyManagersForSubmittedReport_(state, report, reportUser, actorUser)
       });
     }
   });
-  summary.message = `Email 通知完成：成功 ${summary.sent} 筆，失敗 ${summary.failed} 筆。`;
+
+  const lineToken = getLineChannelAccessToken_();
+  if (!lineRecipients.length) {
+    summary.line.skipped += 1;
+    appendNotificationLog_(state, {
+      report,
+      senderUser: actorUser,
+      receiverUser: null,
+      channel: 'line',
+      target: '',
+      status: 'skipped',
+      subject,
+      message: '月報已送出，但尚未設定主管 LINE Target ID，因此未寄出 LINE 通知。',
+      errorMessage: '',
+    });
+  } else if (!lineToken) {
+    summary.line.skipped += lineRecipients.length;
+    summary.ok = false;
+    lineRecipients.forEach((recipient) => appendNotificationLog_(state, {
+      report,
+      senderUser: actorUser,
+      receiverUser: recipient.user,
+      channel: 'line',
+      target: recipient.lineTargetId,
+      status: 'skipped',
+      subject,
+      message: lineMessage,
+      errorMessage: '尚未設定 LINE_CHANNEL_ACCESS_TOKEN',
+    }));
+  } else {
+    lineRecipients.forEach((recipient) => {
+      try {
+        sendLinePushMessage_(lineToken, recipient.lineTargetId, lineMessage);
+        summary.line.sent += 1;
+        appendNotificationLog_(state, {
+          report,
+          senderUser: actorUser,
+          receiverUser: recipient.user,
+          channel: 'line',
+          target: recipient.lineTargetId,
+          status: 'sent',
+          subject,
+          message: lineMessage,
+          errorMessage: '',
+        });
+      } catch (error) {
+        summary.line.failed += 1;
+        summary.ok = false;
+        appendNotificationLog_(state, {
+          report,
+          senderUser: actorUser,
+          receiverUser: recipient.user,
+          channel: 'line',
+          target: recipient.lineTargetId,
+          status: 'failed',
+          subject,
+          message: lineMessage,
+          errorMessage: error && error.message ? error.message : String(error),
+        });
+      }
+    });
+  }
+
+  summary.message = [
+    `Email：成功 ${summary.email.sent} 筆，失敗 ${summary.email.failed} 筆，未寄出 ${summary.email.skipped} 筆。`,
+    `LINE：成功 ${summary.line.sent} 筆，失敗 ${summary.line.failed} 筆，未寄出 ${summary.line.skipped} 筆。`,
+  ].join(' ');
   return summary;
 }
 
-function getManagerNotificationRecipients_(state, report) {
+function getManagerEmailNotificationRecipients_(state, report) {
   const recipients = [];
   const seen = {};
   const addRecipient = (email, user) => {
@@ -1227,6 +1321,68 @@ function getManagerNotificationRecipients_(state, report) {
     .forEach((email) => addRecipient(email, null));
 
   return recipients;
+}
+
+function getManagerLineNotificationRecipients_(state, report) {
+  const recipients = [];
+  const seen = {};
+  const addRecipient = (lineTargetId, user) => {
+    const normalizedTarget = String(lineTargetId || '').trim();
+    if (!normalizedTarget) return;
+    if (seen[normalizedTarget]) return;
+    seen[normalizedTarget] = true;
+    recipients.push({ lineTargetId: normalizedTarget, user: user || null });
+  };
+
+  (state.users || [])
+    .filter((user) => user.role === 'manager')
+    .filter((user) => user.notifyByLine === true)
+    .filter((user) => user.isNotificationReceiver !== false)
+    .filter((user) => !report.branch || !user.branch || String(user.branch) === String(report.branch))
+    .forEach((user) => addRecipient(user.lineTargetId, user));
+
+  const fallbackTargets = PropertiesService
+    .getScriptProperties()
+    .getProperty('MONTHLY_REPORT_LINE_TARGET_IDS');
+  splitNotificationTargets_(fallbackTargets)
+    .forEach((lineTargetId) => addRecipient(lineTargetId, null));
+
+  return recipients;
+}
+
+function getLineChannelAccessToken_() {
+  return String(PropertiesService.getScriptProperties().getProperty('LINE_CHANNEL_ACCESS_TOKEN') || '').trim();
+}
+
+function sendLinePushMessage_(channelAccessToken, targetId, text) {
+  const response = UrlFetchApp.fetch('https://api.line.me/v2/bot/message/push', {
+    method: 'post',
+    contentType: 'application/json',
+    headers: {
+      Authorization: `Bearer ${channelAccessToken}`,
+    },
+    payload: JSON.stringify({
+      to: targetId,
+      messages: [
+        {
+          type: 'text',
+          text: String(text || '').slice(0, 4900),
+        },
+      ],
+    }),
+    muteHttpExceptions: true,
+  });
+  const code = response.getResponseCode();
+  if (code < 200 || code >= 300) {
+    throw new Error(`LINE 通知失敗 HTTP ${code}：${response.getContentText()}`);
+  }
+}
+
+function splitNotificationTargets_(value) {
+  return String(value || '')
+    .split(/[,\n;\s]+/)
+    .map((item) => item.trim())
+    .filter(Boolean);
 }
 
 function appendNotificationLog_(state, data) {
@@ -1353,6 +1509,8 @@ function sanitizeUser_(user, reports) {
     duty: user.duty || user.title || '',
     email: user.email || '',
     notifyByEmail: user.notifyByEmail === false ? false : true,
+    lineTargetId: user.lineTargetId || '',
+    notifyByLine: user.notifyByLine === true ? true : false,
     isNotificationReceiver: user.isNotificationReceiver === false ? false : user.role === 'manager',
     teachingHourlyRate: Number(user.teachingHourlyRate || latestPartTimeContract?.teachingHourlyRate || 0),
     adminHourlyRate: Number(user.adminHourlyRate || latestPartTimeContract?.adminHourlyRate || 0),
@@ -1485,6 +1643,8 @@ function upsertUser(token, payload) {
     duty: String(data.duty || data.title || '').trim(),
     email,
     notifyByEmail: data.notifyByEmail === false ? false : true,
+    lineTargetId: String(data.lineTargetId || previous?.lineTargetId || '').trim(),
+    notifyByLine: data.notifyByLine === true ? true : false,
     isNotificationReceiver: data.isNotificationReceiver === false ? false : role === 'manager',
     teachingHourlyRate: Number(data.teachingHourlyRate || previous?.teachingHourlyRate || 0),
     adminHourlyRate: Number(data.adminHourlyRate || previous?.adminHourlyRate || 0),
@@ -1606,6 +1766,8 @@ function importStaffUsersRows_(rows) {
       duty: staff.duty || previous?.duty || previous?.title || '',
       email: previous ? previous.email || '' : '',
       notifyByEmail: previous ? previous.notifyByEmail !== false : true,
+      lineTargetId: previous ? previous.lineTargetId || '' : '',
+      notifyByLine: previous ? previous.notifyByLine === true : false,
       isNotificationReceiver: previous ? previous.isNotificationReceiver !== false : role === 'manager',
       mustChangePassword: previous ? Boolean(previous.mustChangePassword) : true,
       defaultClassAssignments: previous ? previous.defaultClassAssignments || [] : [],

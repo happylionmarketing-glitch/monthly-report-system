@@ -10,7 +10,7 @@
 - Dashboard
 - 本月未送出名單
 - 主管審核紀錄
-- 老師送出月報後 Email 通知主管簽核
+- 老師送出月報後 Email / LINE 通知主管簽核
 - PDF / Word 匯出到 Google Drive
 
 ## 部署方式
@@ -35,11 +35,11 @@
 - `Word` 匯出會先生成 Google 文件與 `.docx` 檔案，`PDF` 也會同步生成到 Drive。
 - 如果你之後要接學校帳號驗證，我可以再幫你改成只允許特定 Google Workspace 帳號登入。
 
-## Email 簽核通知
+## Email / LINE 簽核通知
 
-老師送出月報時，系統會寄 Email 給主管通知簽核。
+老師送出月報時，系統會寄 Email 或 LINE 給主管通知簽核。
 
-設定方式：
+Email 設定方式：
 
 1. 主管登入後，到「帳號清單與密碼管理」。
 2. 編輯主管帳號，填入 `Email 通知信箱`。
@@ -49,6 +49,18 @@
    - 多個收件人可用逗號、分號、空白或換行分隔。
 5. 若要讓通知信中的按鈕固定連到正式網址，可設定：
    - `MONTHLY_REPORT_WEB_APP_URL = 你的正式 Web App 網址`
+
+LINE 設定方式：
+
+1. 建立或使用既有 LINE Official Account，並在 LINE Developers 後台啟用 Messaging API。
+2. 取得 Channel Access Token，寫入 Apps Script 的 Script Properties：
+   - `LINE_CHANNEL_ACCESS_TOKEN = 你的 LINE Messaging API Channel Access Token`
+3. 在「帳號清單與密碼管理」編輯主管帳號。
+4. 填入 `LINE Target ID`，可使用 LINE User ID、Group ID 或 Room ID。
+5. 勾選 `接收 LINE 通知` 與 `主管簽核通知接收者`。
+6. 若不想綁在主管帳號，也可以設定備援收件目標：
+   - `MONTHLY_REPORT_LINE_TARGET_IDS = Uxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx`
+   - 多個 Target ID 可用逗號、分號、空白或換行分隔。
 
 通知成功、失敗或未設定收件人，都會寫入 `NotificationLogs` 工作表，主管可在帳號管理頁下方查看最近通知紀錄。
 
