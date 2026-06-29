@@ -1309,7 +1309,7 @@ function getManagerEmailNotificationRecipients_(state, report) {
     .filter((user) => user.role === 'manager')
     .filter((user) => user.notifyByEmail !== false)
     .filter((user) => user.isNotificationReceiver !== false)
-    .filter((user) => !report.branch || !user.branch || String(user.branch) === String(report.branch))
+    .filter((user) => notificationBranchMatches_(user.branch, report.branch))
     .forEach((user) => addRecipient(user.email, user));
 
   const fallbackEmails = PropertiesService
@@ -1339,7 +1339,7 @@ function getManagerLineNotificationRecipients_(state, report) {
     .filter((user) => user.role === 'manager')
     .filter((user) => user.notifyByLine === true)
     .filter((user) => user.isNotificationReceiver !== false)
-    .filter((user) => !report.branch || !user.branch || String(user.branch) === String(report.branch))
+    .filter((user) => notificationBranchMatches_(user.branch, report.branch))
     .forEach((user) => addRecipient(user.lineTargetId, user));
 
   const fallbackTargets = PropertiesService
@@ -1384,6 +1384,23 @@ function splitNotificationTargets_(value) {
     .split(/[,\n;\s]+/)
     .map((item) => item.trim())
     .filter(Boolean);
+}
+
+function notificationBranchMatches_(managerBranch, reportBranch) {
+  const managerValue = normalizeBranchForNotification_(managerBranch);
+  const reportValue = normalizeBranchForNotification_(reportBranch);
+  if (!managerValue || !reportValue) {
+    return true;
+  }
+  return managerValue.indexOf(reportValue) >= 0 || reportValue.indexOf(managerValue) >= 0;
+}
+
+function normalizeBranchForNotification_(value) {
+  return String(value || '')
+    .toLowerCase()
+    .replace(/\u6a02\u7345\u82f1\u8a9e/g, '')
+    .replace(/[()\s\-_/\\\uFF0F\u3001,\uFF0C|\uFF5C]+/g, '')
+    .trim();
 }
 
 function appendNotificationLog_(state, data) {
