@@ -795,6 +795,7 @@
                   <div class="field">
                     <span>新密碼</span>
                     <input id="userEditPassword" type="password" placeholder="新增必填；修改時留空代表不變更">
+                    <small class="muted">主管可手動輸入新密碼後重設，或由系統產生臨時密碼。</small>
                   </div>
                   <div class="field">
                     <label style="display:flex; gap:10px; align-items:center;">
@@ -802,6 +803,11 @@
                       <span>下次登入強制改密碼</span>
                     </label>
                   </div>
+                  <div class="row-actions" style="justify-content:flex-start;">
+                    <button class="ghost" id="resetPasswordBtn" type="button">重設為上方新密碼</button>
+                    <button class="ghost" id="generateTempPasswordBtn" type="button">產生臨時密碼並重設</button>
+                  </div>
+                  <div id="tempPasswordNotice" class="message hidden"></div>
                   <div class="row-actions" style="justify-content:flex-start;">
                     <button class="ghost" id="newUserBtn" type="button">新增使用者</button>
                     <button class="btn" id="saveUserBtn" type="button">儲存使用者</button>
@@ -1027,11 +1033,36 @@
       function setUserAdminLoading(isLoading, text = '正在寫入帳號資料，請稍候...') {
         $('userAdminLoading').classList.toggle('hidden', !isLoading);
         $('userAdminLoadingText').textContent = text;
-        ['newUserBtn', 'saveUserBtn', 'deleteUserBtn', 'userEditorSelect', 'userEditName', 'userEditAccount', 'userEditRole', 'userEditStaffCode', 'userEditDuty', 'userEditTeachingRate', 'userEditAdminRate', 'userEditContractEndDate', 'userEditBranch', 'userEditEmail', 'userEditLineTargetId', 'userEditNotifyByEmail', 'userEditNotifyByLine', 'userEditNotificationReceiver', 'userEditPassword', 'userEditForceChange']
+        ['newUserBtn', 'saveUserBtn', 'deleteUserBtn', 'resetPasswordBtn', 'generateTempPasswordBtn', 'userEditorSelect', 'userEditName', 'userEditAccount', 'userEditRole', 'userEditStaffCode', 'userEditDuty', 'userEditTeachingRate', 'userEditAdminRate', 'userEditContractEndDate', 'userEditBranch', 'userEditEmail', 'userEditLineTargetId', 'userEditNotifyByEmail', 'userEditNotifyByLine', 'userEditNotificationReceiver', 'userEditPassword', 'userEditForceChange']
           .forEach((id) => {
             const el = $(id);
             if (el) el.disabled = isLoading;
           });
+      }
+
+      function setTempPasswordNotice(text, kind = 'ok') {
+        const el = $('tempPasswordNotice');
+        if (!el) return;
+        if (!text) {
+          el.className = 'message hidden';
+          el.innerHTML = '';
+          return;
+        }
+        el.className = `message ${kind}`;
+        el.innerHTML = text;
+      }
+
+      function generateTemporaryPassword(length = 10) {
+        const alphabet = 'ABCDEFGHJKLMNPQRSTUVWXYZabcdefghijkmnopqrstuvwxyz23456789';
+        const values = new Uint32Array(length);
+        if (window.crypto && window.crypto.getRandomValues) {
+          window.crypto.getRandomValues(values);
+        } else {
+          for (let index = 0; index < length; index += 1) {
+            values[index] = Math.floor(Math.random() * alphabet.length);
+          }
+        }
+        return Array.from(values).map((value) => alphabet[value % alphabet.length]).join('');
       }
 
       function setSubmitConfirmMessage(text, kind = 'ok') {
@@ -2396,6 +2427,7 @@
 
       function renderUserAdmin() {
         const users = (state.bootstrap && Array.isArray(state.bootstrap.users)) ? state.bootstrap.users : [];
+        const selectedUserId = $('userEditorSelect') ? $('userEditorSelect').value : '';
         const listHtml = users.map((user) => `
           <tr>
             <td>${escapeHtml(user.name || '')}</td>
@@ -2439,7 +2471,9 @@
         renderNotificationLogs();
 
         $('userEditorSelect').innerHTML = users.map((user) => `<option value="${escapeHtml(user.id)}">${escapeHtml(user.name || user.account || user.id)}｜${escapeHtml(user.account || '')}</option>`).join('');
-        if (users.length && !$('userEditorSelect').value) {
+        if (users.some((user) => user.id === selectedUserId)) {
+          $('userEditorSelect').value = selectedUserId;
+        } else if (users.length && !$('userEditorSelect').value) {
           $('userEditorSelect').value = users[0].id;
         }
         populateUserEditor();
@@ -2547,6 +2581,7 @@
 
       function populateUserEditor() {
         const user = getSelectedEditorUser();
+        setTempPasswordNotice('');
         $('userEditName').value = user ? user.name || '' : '';
         $('userEditAccount').value = user ? user.account || '' : '';
         $('userEditRole').value = user ? user.role || 'teacher' : 'teacher';
@@ -2583,7 +2618,28 @@
         $('userEditNotificationReceiver').checked = false;
         $('userEditPassword').value = '';
         $('userEditForceChange').checked = true;
+        setTempPasswordNotice('');
         setResetMessage('');
+      }
+
+      async function resetSelectedUserPassword(nextPassword, options = {}) {
+        const user = getSelectedEditorUser();
+        if (!user) {
+          throw new Error('請先選擇要重設密碼的帳號');
+        }
+        const password = String(nextPassword || '').trim();
+        if (password.length < 6) {
+          throw new Error('新密碼至少需要 6 碼');
+        }
+        const token = localStorage.getItem(tokenKey);
+        if (!token) {
+          throw new Error('請先登入');
+        }
+        const forceMustChangePassword = options.forceMustChangePassword === undefined
+          ? $('userEditForceChange').checked
+          : options.forceMustChangePassword;
+        const updatedUser = await call('resetUserPassword', token, user.id, password, forceMustChangePassword);
+        return updatedUser;
       }
 
       async function saveCurrent(status) {
@@ -2814,9 +2870,51 @@
           clearUserEditorForNew();
         };
 
+        $('resetPasswordBtn').onclick = async () => {
+          try {
+            setResetMessage('');
+            setTempPasswordNotice('');
+            setUserAdminLoading(true, '正在重設密碼，請稍候...');
+            const user = getSelectedEditorUser();
+            await resetSelectedUserPassword($('userEditPassword').value);
+            $('userEditPassword').value = '';
+            await refreshAll();
+            setResetMessage(`${user.name || user.account} 的密碼已重設完成，請通知老師使用新密碼登入。`);
+          } catch (error) {
+            setResetMessage(error.message || '密碼重設失敗', 'err');
+          } finally {
+            setUserAdminLoading(false);
+          }
+        };
+
+        $('generateTempPasswordBtn').onclick = async () => {
+          const tempPassword = generateTemporaryPassword();
+          try {
+            setResetMessage('');
+            setTempPasswordNotice('');
+            setUserAdminLoading(true, '正在產生並寫入臨時密碼，請稍候...');
+            const user = getSelectedEditorUser();
+            await resetSelectedUserPassword(tempPassword, { forceMustChangePassword: true });
+            $('userEditPassword').value = '';
+            $('userEditForceChange').checked = true;
+            await refreshAll();
+            setResetMessage(`${user.name || user.account} 的臨時密碼已產生並寫入完成。`);
+            setTempPasswordNotice(`
+              <strong>臨時密碼：</strong>
+              <span style="font-size:18px; letter-spacing:.08em;">${escapeHtml(tempPassword)}</span>
+              <div class="muted" style="margin-top:6px;">這組密碼只在本次畫面顯示，請先提供給老師；老師下次登入後會被要求改密碼。</div>
+            `);
+          } catch (error) {
+            setResetMessage(error.message || '臨時密碼產生失敗', 'err');
+          } finally {
+            setUserAdminLoading(false);
+          }
+        };
+
         $('saveUserBtn').onclick = async () => {
           try {
             setResetMessage('');
+            setTempPasswordNotice('');
             setUserAdminLoading(true, '正在儲存使用者資料，請稍候...');
             const token = localStorage.getItem(tokenKey);
             if (!token) {
