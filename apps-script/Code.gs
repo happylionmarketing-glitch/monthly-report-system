@@ -3,11 +3,13 @@ const APP = {
   dbPropertyKey: 'MONTHLY_REPORT_DB_ID',
   exportFolderKey: 'MONTHLY_REPORT_EXPORT_FOLDER_ID',
   referenceSpreadsheetKey: 'DASHBOARD_REFERENCE_SPREADSHEET_ID',
+  dashboardApiTokenKey: 'MONTHLY_REPORT_DASHBOARD_API_TOKEN',
   sessionPrefix: 'monthly-report-session:',
   sessionTtlSeconds: 6 * 60 * 60,
 };
 
 const DEFAULT_REFERENCE_SPREADSHEET_ID = '';
+const DEFAULT_DASHBOARD_MONTHLY_API_TOKEN = '40d21e804c11438eaed60bacf4e99eae';
 
 const META = {
   systemName: '月報填報系統',
@@ -138,6 +140,10 @@ const STAFF_IMPORT_ROWS = [
 ];
 
 function doGet(e) {
+  if (e && e.parameter && e.parameter.api) {
+    return handleDashboardMonthlyApiRequest_(e);
+  }
+
   if (e && e.parameter && e.parameter.action === 'checkReferenceSheets') {
     return ContentService.createTextOutput(JSON.stringify(checkReferenceSheets()))
       .setMimeType(ContentService.MimeType.JSON);
@@ -174,6 +180,381 @@ function doGet(e) {
 
 function include(name) {
   return HtmlService.createHtmlOutputFromFile(name).getContent();
+}
+
+function handleDashboardMonthlyApiRequest_(e) {
+  ensureDatabase_();
+
+  try {
+    requireDashboardMonthlyApiToken_(e);
+
+    const apiName = String(e.parameter.api || '').trim();
+    if (apiName === 'dashboardMonthlySummary') {
+      return jsonContentOutput_(buildDashboardMonthlySummaryApi_(e.parameter));
+    }
+    if (apiName === 'dashboardMonthlyReports') {
+      return jsonContentOutput_(buildDashboardMonthlyReportsApi_(e.parameter));
+    }
+    if (apiName === 'dashboardMonthlyStaffMap') {
+      return jsonContentOutput_(buildDashboardMonthlyStaffMapApi_(e.parameter));
+    }
+
+    return jsonContentOutput_({
+      ok: false,
+      api: apiName,
+      error_code: 'INVALID_API',
+      message: '不支援的 API 名稱',
+    });
+  } catch (error) {
+    return jsonContentOutput_({
+      ok: false,
+      api: e && e.parameter ? String(e.parameter.api || '') : '',
+      error_code: error && error.code ? error.code : 'SYSTEM_ERROR',
+      message: error && error.message ? error.message : String(error),
+    });
+  }
+}
+
+function buildDashboardMonthlySummaryApi_(params) {
+  const periodId = normalizeDashboardApiPeriod_(params.period);
+  const requestedBranch = normalizeOfficialBranchName_(params.branch || '');
+  const state = loadState_();
+  const activeUsers = getDashboardMonthlyApiUsers_(state.users);
+  const monthReports = (state.reports || []).filter((report) => normalizeMonthKey_(report.month) === periodId);
+  const branchNames = collectDashboardMonthlyBranchNames_(activeUsers, monthReports, requestedBranch);
+  const branchProgress = branchNames.map((branchName) => buildDashboardMonthlyBranchSummary_(periodId, branchName, activeUsers, monthReports));
+  const summaryAll = summarizeDashboardMonthlyBranchProgress_(branchProgress);
+
+  return {
+    ok: true,
+    api: 'dashboardMonthlySummary',
+    period_id: periodId,
+    generated_at: new Date().toISOString(),
+    source_version: 'monthly-api-v1',
+    summary_all: summaryAll,
+    branch_progress: branchProgress,
+  };
+}
+
+function buildDashboardMonthlyReportsApi_(params) {
+  const periodId = normalizeDashboardApiPeriod_(params.period);
+  const requestedBranch = normalizeOfficialBranchName_(params.branch || '');
+  const updatedAfter = normalizeDashboardApiDateTime_(params.updatedAfter || '');
+  const page = Math.max(1, parsePositiveInt_(params.page, 1));
+  const pageSize = Math.min(1000, Math.max(1, parsePositiveInt_(params.pageSize, 200)));
+  const state = loadState_();
+  const decoratedReports = (state.reports || [])
+    .filter((report) => normalizeMonthKey_(report.month) === periodId)
+    .filter((report) => requestedBranch ? dashboardMonthlyRecordMatchesBranch_(report, state.users, requestedBranch) : true)
+    .filter((report) => updatedAfter ? String(report.updatedAt || '') >= updatedAfter : true)
+    .map((report) => buildDashboardMonthlyReportRecord_(report, state.users))
+    .sort((left, right) => String(right.updated_at || '').localeCompare(String(left.updated_at || '')));
+
+  const total = decoratedReports.length;
+  const startIndex = (page - 1) * pageSize;
+  const records = decoratedReports.slice(startIndex, startIndex + pageSize);
+
+  return {
+    ok: true,
+    api: 'dashboardMonthlyReports',
+    period_id: periodId,
+    page: page,
+    page_size: pageSize,
+    record_count: total,
+    generated_at: new Date().toISOString(),
+    records: records,
+  };
+}
+
+function buildDashboardMonthlyStaffMapApi_() {
+  const state = loadState_();
+  const records = getDashboardMonthlyApiUsers_(state.users)
+    .map((user) => {
+      const branchNames = normalizeOfficialBranchNames_(user.branch);
+      const classNames = (user.defaultClassAssignments || [])
+        .map((item) => String(item.className || '').trim())
+        .filter(Boolean);
+      return {
+        employee_id: user.id,
+        employee_name: user.name,
+        branch_name: branchNames[0] || '',
+        branch_names: branchNames,
+        class_name: classNames[0] || '',
+        class_names: classNames,
+        is_active: true,
+        staff_code: user.staffCode || '',
+        title: user.title || '',
+        duty: user.duty || '',
+      };
+    })
+    .sort((left, right) => {
+      return `${left.branch_name} ${left.employee_name}`.localeCompare(`${right.branch_name} ${right.employee_name}`, 'zh-Hant');
+    });
+
+  return {
+    ok: true,
+    api: 'dashboardMonthlyStaffMap',
+    generated_at: new Date().toISOString(),
+    records: records,
+  };
+}
+
+function buildDashboardMonthlyBranchSummary_(periodId, branchName, users, reports) {
+  const expectedUsers = (users || []).filter((user) => normalizeOfficialBranchNames_(user.branch).indexOf(branchName) >= 0);
+  const branchReports = (reports || []).filter((report) => dashboardMonthlyRecordMatchesBranch_(report, users, branchName));
+  const draftReports = branchReports.filter((report) => report.status === 'draft').length;
+  const submittedReports = branchReports.filter((report) => report.status === 'submitted').length;
+  const reviewedReports = branchReports.filter((report) => report.status === 'reviewed').length;
+  const needsRevisionReports = branchReports.filter((report) => report.status === 'needs_revision').length;
+
+  return {
+    period_id: periodId,
+    branch_name: branchName,
+    expected_reports: expectedUsers.length,
+    draft_reports: draftReports,
+    submitted_reports: submittedReports,
+    reviewed_reports: reviewedReports,
+    needs_revision_reports: needsRevisionReports,
+    pending_total: draftReports + needsRevisionReports,
+  };
+}
+
+function summarizeDashboardMonthlyBranchProgress_(branchProgress) {
+  return (branchProgress || []).reduce((summary, item) => {
+    summary.period_id = summary.period_id || item.period_id || '';
+    summary.expected_reports += Number(item.expected_reports || 0);
+    summary.draft_reports += Number(item.draft_reports || 0);
+    summary.submitted_reports += Number(item.submitted_reports || 0);
+    summary.reviewed_reports += Number(item.reviewed_reports || 0);
+    summary.needs_revision_reports += Number(item.needs_revision_reports || 0);
+    summary.pending_total += Number(item.pending_total || 0);
+    return summary;
+  }, {
+    period_id: '',
+    expected_reports: 0,
+    draft_reports: 0,
+    submitted_reports: 0,
+    reviewed_reports: 0,
+    needs_revision_reports: 0,
+    pending_total: 0,
+  });
+}
+
+function buildDashboardMonthlyReportRecord_(report, users) {
+  const decorated = decorateReport_(report, users);
+  const reportUser = (users || []).find((user) => user.id === decorated.userId);
+  const branchNames = normalizeOfficialBranchNames_(decorated.branch || (reportUser && reportUser.branch) || '');
+  const classNames = extractDashboardMonthlyClassNames_(decorated);
+
+  return {
+    report_id: decorated.id || '',
+    period_id: normalizeMonthKey_(decorated.month),
+    branch_name: branchNames[0] || '',
+    branch_names: branchNames,
+    employee_id: decorated.userId || '',
+    employee_name: decorated.userName || '',
+    class_name: classNames[0] || '',
+    class_names: classNames,
+    status: normalizeDashboardMonthlyStatus_(decorated.status),
+    review_note: String(decorated.reviewerNote || getLatestDashboardMonthlyReviewNote_(decorated.reviewHistory) || ''),
+    submitted_at: decorated.submittedAt || '',
+    reviewed_at: getLatestDashboardMonthlyReviewedAt_(decorated.reviewHistory),
+    updated_at: decorated.updatedAt || '',
+    overall_score: decorated.scores && decorated.scores.overall !== undefined ? Number(decorated.scores.overall || 0) : 0,
+  };
+}
+
+function extractDashboardMonthlyClassNames_(report) {
+  const assignments = Array.isArray(report && report.data && report.data.classAssignments)
+    ? report.data.classAssignments
+    : [];
+  return assignments
+    .map((item) => String(item.className || '').trim())
+    .filter(Boolean);
+}
+
+function getLatestDashboardMonthlyReviewNote_(reviewHistory) {
+  const item = (Array.isArray(reviewHistory) ? reviewHistory : [])
+    .slice()
+    .reverse()
+    .filter((entry) => String(entry.reviewerNote || '').trim())[0];
+  return item ? String(item.reviewerNote || '') : '';
+}
+
+function getLatestDashboardMonthlyReviewedAt_(reviewHistory) {
+  const item = (Array.isArray(reviewHistory) ? reviewHistory : [])
+    .slice()
+    .reverse()
+    .filter((entry) => String(entry.status || '') === 'reviewed')[0];
+  return item ? String(item.reviewedAt || '') : '';
+}
+
+function collectDashboardMonthlyBranchNames_(users, reports, requestedBranch) {
+  const lookup = {};
+  const branchNames = [];
+
+  (users || []).forEach((user) => {
+    normalizeOfficialBranchNames_(user.branch).forEach((branchName) => {
+      if (!branchName || lookup[branchName]) return;
+      lookup[branchName] = true;
+      branchNames.push(branchName);
+    });
+  });
+
+  (reports || []).forEach((report) => {
+    normalizeOfficialBranchNames_(report.branch).forEach((branchName) => {
+      if (!branchName || lookup[branchName]) return;
+      lookup[branchName] = true;
+      branchNames.push(branchName);
+    });
+  });
+
+  const sorted = branchNames.sort((left, right) => left.localeCompare(right, 'zh-Hant'));
+  if (requestedBranch) {
+    return sorted.filter((branchName) => branchName === requestedBranch);
+  }
+  return sorted;
+}
+
+function getDashboardMonthlyApiUsers_(users) {
+  return (users || []).filter((user) => user && user.role !== 'manager');
+}
+
+function dashboardMonthlyRecordMatchesBranch_(report, users, branchName) {
+  const reportBranchNames = normalizeOfficialBranchNames_(report && report.branch ? report.branch : '');
+  if (reportBranchNames.indexOf(branchName) >= 0) {
+    return true;
+  }
+
+  const reportUser = (users || []).find((user) => user.id === report.userId);
+  if (!reportUser) {
+    return false;
+  }
+
+  return normalizeOfficialBranchNames_(reportUser.branch).indexOf(branchName) >= 0;
+}
+
+function normalizeDashboardMonthlyStatus_(status) {
+  const value = String(status || '').trim();
+  if (['draft', 'submitted', 'reviewed', 'needs_revision'].indexOf(value) >= 0) {
+    return value;
+  }
+  return 'draft';
+}
+
+function normalizeDashboardApiPeriod_(value) {
+  const periodId = normalizeMonthKey_(value || '');
+  if (!/^\d{4}-\d{2}$/.test(periodId)) {
+    throw dashboardApiError_('INVALID_PERIOD', 'period 格式錯誤，需為 YYYY-MM');
+  }
+  return periodId;
+}
+
+function normalizeDashboardApiDateTime_(value) {
+  const text = String(value || '').trim();
+  if (!text) {
+    return '';
+  }
+  return text;
+}
+
+function normalizeOfficialBranchNames_(raw) {
+  const parts = String(raw || '')
+    .split(/\r?\n|\/|,|，|\|/)
+    .map((item) => normalizeOfficialBranchName_(item))
+    .filter(Boolean);
+  const lookup = {};
+  return parts.filter((item) => {
+    if (lookup[item]) return false;
+    lookup[item] = true;
+    return true;
+  });
+}
+
+function normalizeOfficialBranchName_(raw) {
+  const text = String(raw || '').trim();
+  if (!text) return '';
+  if (text.indexOf('全部分校') >= 0 || String(text).toLowerCase() === 'all') return '';
+  if (text.indexOf('二重') >= 0) return '二重分校';
+  if (text.indexOf('安興') >= 0) return '安興分校';
+  return text
+    .replace(/^樂獅英語[-－]*/g, '')
+    .replace(/^新竹/g, '')
+    .replace(/^竹北/g, '')
+    .trim();
+}
+
+function requireDashboardMonthlyApiToken_(e) {
+  const configuredToken = getDashboardMonthlyApiToken_();
+  if (!configuredToken) {
+    throw dashboardApiError_('UNAUTHORIZED', '尚未設定月報 Dashboard API token');
+  }
+
+  const providedToken = String((e && e.parameter && e.parameter.token) || '').trim();
+  if (!providedToken || providedToken !== configuredToken) {
+    throw dashboardApiError_('UNAUTHORIZED', 'token 驗證失敗');
+  }
+}
+
+function getDashboardMonthlyApiToken_() {
+  return String(PropertiesService.getScriptProperties().getProperty(APP.dashboardApiTokenKey) || DEFAULT_DASHBOARD_MONTHLY_API_TOKEN || '').trim();
+}
+
+function rotateMonthlyDashboardApiToken() {
+  const token = Utilities.getUuid().replace(/-/g, '');
+  PropertiesService.getScriptProperties().setProperty(APP.dashboardApiTokenKey, token);
+  return {
+    ok: true,
+    token: token,
+    propertyKey: APP.dashboardApiTokenKey,
+  };
+}
+
+function setMonthlyDashboardApiToken(token) {
+  const value = String(token || '').trim();
+  if (!value) {
+    throw new Error('請提供 token');
+  }
+  PropertiesService.getScriptProperties().setProperty(APP.dashboardApiTokenKey, value);
+  return {
+    ok: true,
+    token: value,
+    propertyKey: APP.dashboardApiTokenKey,
+  };
+}
+
+function getMonthlyDashboardApiConfig() {
+  return {
+    ok: true,
+    propertyKey: APP.dashboardApiTokenKey,
+    hasToken: Boolean(getDashboardMonthlyApiToken_()),
+    webAppUrl: getWebAppUrl_(),
+    apis: [
+      'dashboardMonthlySummary',
+      'dashboardMonthlyReports',
+      'dashboardMonthlyStaffMap',
+    ],
+  };
+}
+
+function dashboardApiError_(code, message) {
+  const error = new Error(message);
+  error.code = code;
+  return error;
+}
+
+function jsonContentOutput_(value) {
+  return ContentService
+    .createTextOutput(JSON.stringify(value))
+    .setMimeType(ContentService.MimeType.JSON);
+}
+
+function parsePositiveInt_(value, fallback) {
+  const parsed = Number(value);
+  if (!parsed || Number.isNaN(parsed) || parsed < 1) {
+    return fallback;
+  }
+  return Math.floor(parsed);
 }
 
 function login(account, password) {
@@ -2391,6 +2772,31 @@ function createReferenceTeachingRecords_(previousReport) {
   });
 }
 
+function createReferenceOvertimeRecords_(previousReport) {
+  const previousRows = previousReport && previousReport.data && Array.isArray(previousReport.data.overtimeRecords)
+    ? previousReport.data.overtimeRecords
+    : [];
+  if (!previousRows.length) {
+    return [{
+      id: `ot-${Utilities.getUuid()}`,
+      category: 'weekday',
+      date: '',
+      hours: 0,
+      note: '範例：本月無加班申請可保留 0，或直接刪除此列。',
+    }];
+  }
+  return previousRows.map((item) => {
+    const previousDate = item.date ? `上一期日期：${item.date}` : '上一期紀錄參考';
+    return {
+      id: `ot-${Utilities.getUuid()}`,
+      category: item.category || 'weekday',
+      date: '',
+      hours: Number(item.hours || 0),
+      note: item.note ? `${item.note}（${previousDate}）` : previousDate,
+    };
+  });
+}
+
 function createBlankReport_(user, month, previousReport) {
   const base = {
     id: `r-${month}-${user.id}`,
@@ -2467,6 +2873,7 @@ function createBlankReport_(user, month, previousReport) {
         classAssignments: (user.defaultClassAssignments || []).map((item) => ({ ...item })),
         attendanceRecords: createReferenceAttendanceRecords_(previousReport),
         teachingRecords: createReferenceTeachingRecords_(previousReport),
+        overtimeRecords: createReferenceOvertimeRecords_(previousReport),
         performanceMetrics: {
           trialStudents: 0,
           convertedStudents: 0,
@@ -2499,6 +2906,7 @@ function createBlankReport_(user, month, previousReport) {
     role: 'admin',
     data: {
       attendanceRecords: createReferenceAttendanceRecords_(previousReport),
+      overtimeRecords: createReferenceOvertimeRecords_(previousReport),
       performanceMetrics: {
         entryStudentCount: 0,
         entryStudentNotes: '',
@@ -2558,6 +2966,10 @@ function appendReportBody_(body, report) {
     (report.data.attendanceRecords || []).forEach((item) => {
       body.appendParagraph(`- ${labelAttendance_(item.category)}｜${item.date || '未填日期'}｜${item.days} 天｜${item.hours} 小時｜${item.note || ''}`);
     });
+    body.appendParagraph('加班申請紀錄').setHeading(DocumentApp.ParagraphHeading.HEADING2);
+    (report.data.overtimeRecords || []).forEach((item) => {
+      body.appendParagraph(`- ${labelOvertime_(item.category)}｜${item.date || '未填日期'}｜${item.hours || 0} 小時｜${item.note || ''}`);
+    });
 
     body.appendParagraph('教學紀錄').setHeading(DocumentApp.ParagraphHeading.HEADING2);
     (report.data.teachingRecords || []).forEach((item) => {
@@ -2567,6 +2979,10 @@ function appendReportBody_(body, report) {
     body.appendParagraph('出勤紀錄').setHeading(DocumentApp.ParagraphHeading.HEADING2);
     (report.data.attendanceRecords || []).forEach((item) => {
       body.appendParagraph(`- ${labelAttendance_(item.category)}｜${item.date || '未填日期'}｜${item.days} 天｜${item.hours} 小時｜${item.note || ''}`);
+    });
+    body.appendParagraph('加班申請紀錄').setHeading(DocumentApp.ParagraphHeading.HEADING2);
+    (report.data.overtimeRecords || []).forEach((item) => {
+      body.appendParagraph(`- ${labelOvertime_(item.category)}｜${item.date || '未填日期'}｜${item.hours || 0} 小時｜${item.note || ''}`);
     });
 
     body.appendParagraph('行政績效').setHeading(DocumentApp.ParagraphHeading.HEADING2);
@@ -2630,6 +3046,13 @@ function labelTeacherWork_(value) {
     student_makeup: '幫學生補課',
     activity_hosted: '活動舉辦',
     training_attended: '研習 / 培訓',
+  }[value] || value;
+}
+
+function labelOvertime_(value) {
+  return {
+    weekday: '平常日加班',
+    holiday: '休假日加班',
   }[value] || value;
 }
 
@@ -2746,6 +3169,14 @@ function buildReportPdfHtml_(report, roleName) {
       <td>${escapeHtml_(item.note || '')}</td>
     </tr>
   `).join('') || '<tr><td colspan="5">無出勤紀錄</td></tr>';
+  const overtimeRows = (data.overtimeRecords || []).map((item) => `
+    <tr>
+      <td>${escapeHtml_(labelOvertime_(item.category))}</td>
+      <td>${escapeHtml_(item.date || '未填日期')}</td>
+      <td>${Number(item.hours || 0)}</td>
+      <td>${escapeHtml_(item.note || '')}</td>
+    </tr>
+  `).join('') || '<tr><td colspan="4">無加班申請紀錄</td></tr>';
 
   const partTimeContract = data.partTimeContract || {};
   const partTimeBody = isPartTimeReport_(report) ? `
@@ -2904,6 +3335,11 @@ function buildReportPdfHtml_(report, roleName) {
           <tr><th>類別</th><th>日期</th><th>天數</th><th>時數</th><th>備註</th></tr>
           ${attendanceRows}
         </table>
+        <h2>加班申請紀錄</h2>
+        <table>
+          <tr><th>類別</th><th>日期</th><th>時數</th><th>備註</th></tr>
+          ${overtimeRows}
+        </table>
         ${partTimeBody}
         ${assistantBody}
         ${teacherBody}
@@ -2967,6 +3403,10 @@ function appendReportBody_(body, report) {
     (report.data.attendanceRecords || []).forEach((item) => {
       body.appendParagraph(`- ${labelAttendance_(item.category)}｜${item.date || '未填日期'}｜${item.days || 0} 天｜${item.hours || 0} 小時｜${item.note || ''}`);
     });
+    body.appendParagraph('加班申請紀錄').setHeading(DocumentApp.ParagraphHeading.HEADING2);
+    (report.data.overtimeRecords || []).forEach((item) => {
+      body.appendParagraph(`- ${labelOvertime_(item.category)}｜${item.date || '未填日期'}｜${item.hours || 0} 小時｜${item.note || ''}`);
+    });
 
     body.appendParagraph('教學紀錄').setHeading(DocumentApp.ParagraphHeading.HEADING2);
     (report.data.teachingRecords || []).forEach((item) => {
@@ -2996,6 +3436,10 @@ function appendReportBody_(body, report) {
     body.appendParagraph('出勤紀錄').setHeading(DocumentApp.ParagraphHeading.HEADING2);
     (report.data.attendanceRecords || []).forEach((item) => {
       body.appendParagraph(`- ${labelAttendance_(item.category)}｜${item.date || '未填日期'}｜${item.days || 0} 天｜${item.hours || 0} 小時｜${item.note || ''}`);
+    });
+    body.appendParagraph('加班申請紀錄').setHeading(DocumentApp.ParagraphHeading.HEADING2);
+    (report.data.overtimeRecords || []).forEach((item) => {
+      body.appendParagraph(`- ${labelOvertime_(item.category)}｜${item.date || '未填日期'}｜${item.hours || 0} 小時｜${item.note || ''}`);
     });
 
     body.appendParagraph('行政績效').setHeading(DocumentApp.ParagraphHeading.HEADING2);

@@ -596,7 +596,7 @@
             </aside>
             <div class="content-stack">
             <div id="teacherSection" class="hidden">
-              <h4>英文老師月報填報 / English Teacher Monthly Report</h4>
+              <h4 id="teacherReportTitle">英文老師月報填報 / English Teacher Monthly Report</h4>
               <div id="classTable"></div>
               <div class="row-actions"><button class="ghost" type="button" id="addClassBtn">新增帶班班級 / Add Class</button></div>
               <h4>出勤紀錄 / Attendance Records</h4>
@@ -605,6 +605,9 @@
               <h4>教學紀錄 / Teaching Records</h4>
               <div id="teachingTable"></div>
               <div class="row-actions"><button class="ghost" type="button" id="addTeachingBtn">新增教學紀錄 / Add Teaching Record</button></div>
+              <h4>加班申請紀錄 / Overtime Application Records</h4>
+              <div id="teacherOvertimeTable"></div>
+              <div class="row-actions"><button class="ghost" type="button" id="addTeacherOvertimeBtn">新增加班 / Add Overtime</button></div>
               <h4>績效與反思 / Performance and Reflection</h4>
               <div class="form-grid" id="teacherMetrics"></div>
               <div class="form-grid" id="teacherReflection"></div>
@@ -623,6 +626,9 @@
               <h4>請假紀錄</h4>
               <div id="adminAttendanceTable"></div>
               <div class="row-actions"><button class="ghost" type="button" id="addAdminAttendanceBtn">新增出勤</button></div>
+              <h4>加班申請紀錄</h4>
+              <div id="adminOvertimeTable"></div>
+              <div class="row-actions"><button class="ghost" type="button" id="addAdminOvertimeBtn">新增加班</button></div>
               <h4>績效評比</h4>
               <div class="form-grid" id="adminMetrics"></div>
               <h4>基本業務 / 表格繳交狀況</h4>
@@ -947,6 +953,10 @@
           personal: '事假',
           annual: '特休',
           late: '遲到',
+        },
+        overtime: {
+          weekday: '平常日加班',
+          holiday: '休假日加班',
         },
         teacherWork: {
           substitute_for_other: '幫人代課',
@@ -1640,6 +1650,32 @@
           </div>`;
       }
 
+      function buildOvertimeTable(items, prefix) {
+        return `
+          <div class="table-scroll">
+          <table>
+            <thead><tr><th>類別 / Type</th><th>日期 / Date</th><th>時數 / Hours</th><th>備註 / Notes</th><th>操作 / Action</th></tr></thead>
+            <tbody>
+              ${(items || []).map((item, index) => `
+                <tr>
+                  <td>
+                    <select data-path="data.overtimeRecords.${index}.category">
+                      ${['weekday','holiday'].map((key) => `<option value="${key}" ${item.category === key ? 'selected' : ''}>${{
+                        weekday: '平常日加班 / Weekday overtime',
+                        holiday: '休假日加班 / Holiday overtime',
+                      }[key]}</option>`).join('')}
+                    </select>
+                  </td>
+                  <td><input data-path="data.overtimeRecords.${index}.date" type="date" value="${escapeHtml(item.date || '')}"></td>
+                  <td><input data-path="data.overtimeRecords.${index}.hours" type="number" min="0" step="0.5" value="${Number(item.hours || 0)}"></td>
+                  <td><input data-path="data.overtimeRecords.${index}.note" value="${escapeHtml(item.note || '')}"></td>
+                  <td><button class="ghost" type="button" data-remove-overtime="${prefix}-${index}">刪除 / Delete</button></td>
+                </tr>`).join('') || '<tr><td colspan="5">目前尚未新增加班申請紀錄。/ No overtime record added yet.</td></tr>'}
+            </tbody>
+          </table>
+          </div>`;
+      }
+
       function normalizePartTimeData() {
         if (!state.report) return;
         const data = state.report.data = state.report.data || {};
@@ -1770,6 +1806,15 @@
           };
         });
 
+        document.querySelectorAll('[data-remove-overtime]').forEach((btn) => {
+          btn.onclick = () => {
+            const index = Number(btn.getAttribute('data-remove-overtime').split('-').pop());
+            state.report.data.overtimeRecords = Array.isArray(state.report.data.overtimeRecords) ? state.report.data.overtimeRecords : [];
+            state.report.data.overtimeRecords.splice(index, 1);
+            renderFill();
+          };
+        });
+
         document.querySelectorAll('[data-remove-parttime]').forEach((btn) => {
           btn.onclick = () => {
             state.report.data.partTimeRecords.splice(Number(btn.getAttribute('data-remove-parttime')), 1);
@@ -1867,10 +1912,16 @@
           $('adminSection').classList.add('hidden');
           $('partTimeSection').classList.add('hidden');
           $('assistantSection').classList.add('hidden');
-          $('fillHeading').textContent = '英語老師月報填報';
+          const teacherReportTitle = currentUser().role === 'tutor'
+            ? '課輔老師月報填報 / Tutor Monthly Report'
+            : '英文老師月報填報 / English Teacher Monthly Report';
+          $('fillHeading').textContent = currentUser().role === 'tutor' ? '課輔老師月報填報' : '英語老師月報填報';
+          $('teacherReportTitle').textContent = teacherReportTitle;
+          state.report.data.overtimeRecords = Array.isArray(state.report.data.overtimeRecords) ? state.report.data.overtimeRecords : [];
           $('classTable').innerHTML = buildTeacherTable(state.report.data.classAssignments || [], 'class');
           $('attendanceTable').innerHTML = buildAttendanceTable(state.report.data.attendanceRecords || [], 'teacher');
           $('teachingTable').innerHTML = buildTeacherTable(state.report.data.teachingRecords || [], 'teaching');
+          $('teacherOvertimeTable').innerHTML = buildOvertimeTable(state.report.data.overtimeRecords || [], 'teacher');
           $('teacherMetrics').className = 'metrics-grid';
           $('teacherReflection').className = 'text-stack';
           $('teacherMetrics').innerHTML = [
@@ -1905,7 +1956,9 @@
           if (state.report.data.performanceMetrics.entryStudentCount === undefined) {
             state.report.data.performanceMetrics.entryStudentCount = Number(state.report.data.performanceMetrics.newEnrollments || 0);
           }
+          state.report.data.overtimeRecords = Array.isArray(state.report.data.overtimeRecords) ? state.report.data.overtimeRecords : [];
           $('adminAttendanceTable').innerHTML = buildAttendanceTable(state.report.data.attendanceRecords || [], 'admin');
+          $('adminOvertimeTable').innerHTML = buildOvertimeTable(state.report.data.overtimeRecords || [], 'admin');
           $('adminMetrics').className = 'score-section';
           $('adminChecklist').className = 'score-section';
           $('adminReflection').className = 'text-stack';
@@ -2014,6 +2067,7 @@
         const reflection = data.reflection || {};
         const attendanceCount = (data.attendanceRecords || []).length;
         const teachingCount = (data.teachingRecords || []).length;
+        const overtimeCount = (data.overtimeRecords || []).length;
         const classCount = (data.classAssignments || []).length;
         const studentCount = (data.classAssignments || []).reduce((sum, item) => sum + Number(item.studentCount || 0), 0);
         const checklist = metrics.formChecklist || {};
@@ -2024,6 +2078,7 @@
             ['帶班班級 / 人數', `${classCount} 班 / ${studentCount} 人`],
             ['出勤紀錄', `${attendanceCount} 筆`],
             ['教學紀錄', `${teachingCount} 筆`],
+            ['加班申請紀錄', `${overtimeCount} 筆`],
             ['試讀 / 進班', `${metrics.trialStudents || 0} / ${metrics.convertedStudents || 0}`],
             ['問班學生數', metrics.inquiryStudentCount || 0],
             ['自評分數', reflection.selfEvaluation || 0],
@@ -2033,6 +2088,7 @@
             ['填表人', currentUser().name],
             ['進班人數', metrics.entryStudentCount ?? metrics.newEnrollments ?? 0],
             ['請假紀錄', `${attendanceCount} 筆`],
+            ['加班申請紀錄', `${overtimeCount} 筆`],
             ['櫃詢 / Call 班', `${metrics.inquiryCount || 0} / ${metrics.callCount || 0}`],
             ['櫃詢成功率', `${metrics.conversionRate || 0}%`],
             ['基本業務完成', [metrics.posterCompleted, checklist.overdueNotice, checklist.weeklyHeadcount, checklist.monthEndHeadcount, checklist.tuitionBag].filter(Boolean).length + ' / 5'],
@@ -2088,11 +2144,23 @@
           item.hours || 0,
           item.note || '',
         ]);
+        const overtimeRows = (data.overtimeRecords || []).map((item) => [
+          labels.overtime && labels.overtime[item.category] ? labels.overtime[item.category] : item.category,
+          item.date || '',
+          item.hours || 0,
+          item.note || '',
+        ]);
 
         const attendanceHtml = `
           <div class="card" style="margin-top: 12px;">
             <strong>出勤 / 請假紀錄</strong>
             <div style="margin-top: 10px;">${detailTable(['類別', '日期', '天數', '時數', '備註'], attendanceRows, '目前沒有出勤或請假紀錄。')}</div>
+          </div>
+        `;
+        const overtimeHtml = `
+          <div class="card" style="margin-top: 12px;">
+            <strong>加班申請紀錄</strong>
+            <div style="margin-top: 10px;">${detailTable(['類別', '日期', '時數', '備註'], overtimeRows, '目前沒有加班申請紀錄。')}</div>
           </div>
         `;
 
@@ -2170,7 +2238,7 @@
           `;
         }
 
-        if (report.role === 'teacher') {
+        if (['teacher', 'tutor'].includes(report.role)) {
           const classRows = (data.classAssignments || []).map((item) => [item.className || '', item.level || '', item.studentCount || 0]);
           const teachingRows = (data.teachingRecords || []).map((item) => [
             labels.teacherWork && labels.teacherWork[item.category] ? labels.teacherWork[item.category] : item.category,
@@ -2190,6 +2258,7 @@
               <strong>教學紀錄</strong>
               <div style="margin-top: 10px;">${detailTable(['類別', '日期', '班級', '級數', '時數', '備註'], teachingRows, '目前沒有教學紀錄。')}</div>
             </div>
+            ${overtimeHtml}
             <div class="card" style="margin-top: 12px;">
               <strong>績效數據</strong>
               ${detailMetricGrid([
@@ -2222,6 +2291,7 @@
 
         return `
           ${attendanceHtml}
+          ${overtimeHtml}
           <div class="card" style="margin-top: 12px;">
             <strong>行政績效</strong>
             ${detailMetricGrid([
@@ -3050,8 +3120,18 @@
           state.report.data.teachingRecords.push({ id: `work-${Date.now()}`, category: 'student_makeup', date: '', className: '', level: '', hours: 0, note: '' });
           renderFill();
         };
+        $('addTeacherOvertimeBtn').onclick = () => {
+          state.report.data.overtimeRecords = Array.isArray(state.report.data.overtimeRecords) ? state.report.data.overtimeRecords : [];
+          state.report.data.overtimeRecords.push({ id: `ot-${Date.now()}`, category: 'weekday', date: '', hours: 0, note: '' });
+          renderFill();
+        };
         $('addAdminAttendanceBtn').onclick = () => {
           state.report.data.attendanceRecords.push({ id: `att-${Date.now()}`, category: 'sick', date: '', days: 0, hours: 0, note: '' });
+          renderFill();
+        };
+        $('addAdminOvertimeBtn').onclick = () => {
+          state.report.data.overtimeRecords = Array.isArray(state.report.data.overtimeRecords) ? state.report.data.overtimeRecords : [];
+          state.report.data.overtimeRecords.push({ id: `ot-${Date.now()}`, category: 'weekday', date: '', hours: 0, note: '' });
           renderFill();
         };
         $('addPartTimeRecordBtn').onclick = () => {
