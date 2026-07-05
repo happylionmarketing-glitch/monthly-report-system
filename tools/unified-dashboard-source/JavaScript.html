@@ -1,0 +1,1528 @@
+<script>
+  (function () {
+    var bootstrap = window.__DASHBOARD_BOOTSTRAP__ || {};
+    var data = bootstrap.data || {};
+            var routeLabels = {
+      home: '首頁',
+      monthly: '月報',
+      payroll: '薪資',
+      operations: '營運'
+    };
+    var statusLabels = {
+      draft: '草稿',
+      submitted: '已送出',
+      reviewed: '已審核',
+      needs_revision: '需修正',
+      missing: '缺件',
+      confirmed: '已確認',
+      teacher_pending: '老師待處理',
+      manager_review: '主管審核',
+      needs_fix: '待修正'
+    };
+
+    var storageKey = 'lion-dashboard-gas-webapp-state-v6';
+    var defaults = {
+      branch: (bootstrap.defaults && bootstrap.defaults.branch) || '全部分校',
+      period: (bootstrap.defaults && bootstrap.defaults.period) || '',
+      route: (bootstrap.defaults && bootstrap.defaults.route) || 'home',
+      scope: 'all',
+      keyword: (bootstrap.defaults && bootstrap.defaults.keyword) || '',
+      healthFilter: (bootstrap.defaults && bootstrap.defaults.healthFilter) || 'all'
+    };
+    var requestedState = bootstrap.requestedState || {};
+    var publicWebAppUrl = String(bootstrap.webAppUrl || '').trim();
+
+    var state = mergeState(
+      mergeState(
+        mergeState(defaults, loadState()),
+        requestedState
+      ),
+      readUrlState()
+    );
+
+    var dom = {
+      branch: document.getElementById('branch'),
+      period: document.getElementById('period'),
+      search: document.getElementById('search'),
+      main: document.getElementById('app-main'),
+      modal: document.getElementById('settings-modal'),
+      toast: document.getElementById('prototype-toast'),
+      routeLabels: Array.prototype.slice.call(document.querySelectorAll('[data-state-route-label]')),
+      branches: Array.prototype.slice.call(document.querySelectorAll('[data-state-branch]')),
+      periods: Array.prototype.slice.call(document.querySelectorAll('[data-state-period]')),
+      detailTitle: document.querySelector('[data-detail-target="title"]'),
+      detailBody: document.querySelector('[data-detail-target="body"]'),
+      detailMeta: document.querySelector('[data-detail-target="meta"]'),
+      dataSource: document.getElementById('data-source-label'),
+      routeLinks: Array.prototype.slice.call(document.querySelectorAll('[data-route-link]')),
+      scopeLinks: Array.prototype.slice.call(document.querySelectorAll('[data-scope-link]'))
+    };
+
+    var toastTimer = null;
+
+    function mergeState(base, extra) {
+      var output = {};
+      Object.keys(base || {}).forEach(function (key) {
+        output[key] = base[key];
+      });
+      Object.keys(extra || {}).forEach(function (key) {
+        output[key] = extra[key];
+      });
+      return output;
+    }
+
+    function cloneObject(value) {
+      return JSON.parse(JSON.stringify(value || {}));
+    }
+
+    function loadState() {
+      try {
+        var raw = localStorage.getItem(storageKey);
+        return raw ? JSON.parse(raw) : {};
+      } catch (error) {
+        return {};
+      }
+    }
+
+    function saveState() {
+      try {
+        localStorage.setItem(storageKey, JSON.stringify(state));
+      } catch (error) {}
+    }
+
+    function normalizeRoute(value) {
+      var key = String(value || '').trim().toLowerCase();
+      if (key === 'monthly' || key === 'payroll' || key === 'operations' || key === 'home') {
+        return key;
+      }
+      return 'home';
+    }
+
+    function readUrlState() {
+      var params = new URLSearchParams(window.location.search || '');
+      var rawRoute = params.get('page') || params.get('route') || params.get('view') || '';
+      var urlState = {};
+      if (rawRoute) {
+        urlState.route = normalizeRoute(rawRoute);
+        if (urlState.route === 'home') urlState.scope = 'all';
+      }
+      if (params.has('branch')) urlState.branch = String(params.get('branch') || '').trim();
+      if (params.has('period') || params.has('month')) {
+        urlState.period = String(params.get('period') || params.get('month') || '').trim();
+      }
+      if (params.has('keyword') || params.has('search')) {
+        urlState.keyword = String(params.get('keyword') || params.get('search') || '').trim();
+      }
+      return urlState;
+    }
+
+    function buildUrlFromBase(baseHref, overrides) {
+      var nextState = mergeState(state, overrides || {});
+      var url = new URL(baseHref || window.location.href, window.location.href);
+      var route = normalizeRoute(nextState.route);
+
+      url.searchParams.set('page', route);
+      if (nextState.branch && nextState.branch !== getAllBranchLabel()) {
+        url.searchParams.set('branch', nextState.branch);
+      } else {
+        url.searchParams.delete('branch');
+      }
+      if (nextState.period) {
+        url.searchParams.set('period', nextState.period);
+      } else {
+        url.searchParams.delete('period');
+      }
+      if (nextState.keyword) {
+        url.searchParams.set('keyword', nextState.keyword);
+      } else {
+        url.searchParams.delete('keyword');
+      }
+      url.hash = '';
+      return url.toString();
+    }
+
+    function buildShareUrl(overrides) {
+      return buildUrlFromBase(publicWebAppUrl || window.location.href, overrides);
+    }
+
+    function syncUrlState(usePushState) {
+      var nextUrl = buildUrlFromBase(window.location.href);
+      if (usePushState && window.history && window.history.pushState) {
+        window.history.pushState({}, '', nextUrl);
+        return;
+      }
+      if (window.history && window.history.replaceState) {
+        window.history.replaceState({}, '', nextUrl);
+      }
+    }
+
+    function escapeHtml(value) {
+      return String(value == null ? '' : value)
+        .replace(/&/g, '&amp;')
+        .replace(/</g, '&lt;')
+        .replace(/>/g, '&gt;')
+        .replace(/"/g, '&quot;')
+        .replace(/'/g, '&#39;');
+    }
+
+    function formatDateTime(value) {
+      if (!value) return '-';
+      var text = String(value).trim();
+      if (!text) return '-';
+      if (/^\d{4}-\d{2}-\d{2} \d{2}:\d{2}$/.test(text)) return text;
+
+      var parsed = new Date(text);
+      if (isNaN(parsed.getTime())) {
+        return text.replace('T', ' ').replace('.000Z', '').slice(0, 16);
+      }
+
+      var parts = new Intl.DateTimeFormat('sv-SE', {
+        timeZone: 'Asia/Taipei',
+        year: 'numeric',
+        month: '2-digit',
+        day: '2-digit',
+        hour: '2-digit',
+        minute: '2-digit',
+        hour12: false
+      }).formatToParts(parsed).reduce(function (result, part) {
+        result[part.type] = part.value;
+        return result;
+      }, {});
+
+      return [parts.year, parts.month, parts.day].join('-') + ' ' + [parts.hour, parts.minute].join(':');
+    }
+
+    function formatCurrency(value) {
+      var numberValue = Number(value || 0);
+      if (!numberValue) return '-';
+      return 'NT$' + numberValue.toLocaleString('en-US');
+    }
+
+    function formatSignedNumber(value) {
+      var numberValue = Number(value || 0);
+      if (numberValue > 0) return '+' + numberValue;
+      if (numberValue < 0) return String(numberValue);
+      return '0';
+    }
+
+    function formatPercent(value) {
+      return Math.round(Number(value || 0)) + '%';
+    }
+
+        var localizationPairs = [
+      ['Monthly Follow-up Overview', '月報追件總覽'],
+      ['Track the monthly progress, follow-up list, and field validation results.', '檢視各分校本期月報進度、追件名單與欄位檢查結果。'],
+      ['Expected Monthly Reports', '應填月報'],
+      ['Number of monthly reports expected under the current filter.', '目前條件下應填報的月報數量。'],
+      ['Submitted or reviewed monthly reports.', '已送出或已審核的月報數量。'],
+      ['Monthly reports still needing attention.', '目前仍需要追蹤的月報數量。'],
+      ['Branch Progress', '分校進度'],
+      ['Check monthly status by branch.', '依分校查看本期月報完成狀況。'],
+      ['Need Fill', '待補名單'],
+      ['People still needing submission or correction.', '目前仍需要送出或修正的老師。'],
+      ['Reviewable', '可檢視月報'],
+      ['Monthly Board', '月報看板'],
+      ['Track draft, submitted, revision, and reviewed states.', '查看草稿、已送出、需修正與已審核的分布。'],
+      ['Monthly List', '月報清單'],
+      ['Search by teacher, branch, and content summary.', '可用老師、分校與內容摘要快速搜尋。'],
+      ['Teacher', '老師'],
+      ['Branch', '分校'],
+      ['Status', '狀態'],
+      ['Submitted', '已送出'],
+      ['Reviewed', '已審核'],
+      ['Summary', '摘要'],
+      ['Action', '操作'],
+      ['Data Check', '資料檢查'],
+      ['Verify that monthly data is aligned to the official structure.', '確認月報資料是否已對齊正式架構。'],
+      ['No monthly records', '目前沒有月報紀錄'],
+      ['No missing list', '目前沒有待補名單'],
+      ['No reviewed items', '目前沒有可檢視項目'],
+      ['View content', '查看內容'],
+      ['Not submitted', '尚未送出'],
+      ['Master alignment', '主資料對齊'],
+      ['Still waiting for official branch mapping', '仍在等待正式分校對應。'],
+      ['Unmapped source branches', '未對應來源分校'],
+      ['Teacher Payroll History', '老師薪資歷史'],
+      ["Payroll page reads the Payroll API directly and shows each teacher's historical salary records and anomalies.", '薪資頁直接讀取 Payroll API，顯示每位老師的歷年薪資資料與異常狀況。'],
+      ['Confirmed', '已確認'],
+      ['Payroll records still waiting for confirmation.', '仍在等待確認的薪資紀錄。'],
+      ['Manager Pending', '主管待審'],
+      ['Items still waiting for manager action.', '仍在等待主管處理的項目。'],
+      ['Anomaly Count', '異常筆數'],
+      ['Payroll anomalies and items to review.', '需要留意與處理的薪資異常。'],
+      ['Branch Progress', '分校確認進度'],
+      ['Check each branch payroll confirmation status.', '查看各分校薪資確認狀況。'],
+      ['No branch progress', '目前沒有分校進度'],
+      ['Anomalies', '異常項目'],
+      ['Payroll exceptions needing action.', '需要先處理的薪資例外。'],
+      ['No anomalies', '目前沒有異常項目'],
+      ['Checklist', '檢核清單'],
+      ['Items to confirm before locking the payroll.', '結算薪資前需要再次確認的項目。'],
+      ['No checklist items', '目前沒有檢核項目'],
+      ['Each teacher can expand to view historical salary records.', '每位老師可展開查看歷年薪資單。'],
+      ['No payroll history', '目前沒有薪資歷程'],
+      ['Branch Comparison', '二重 / 安興 分校比較表'],
+      ['Operations page focuses on branch comparison, risks, and next actions.', '營運頁聚焦二重與安興分校的比較、風險與後續動作。'],
+      ['Metric', '指標'],
+      ['Winner', '勝出'],
+      ['Funnel', '營運漏斗'],
+      ['Counts by operating stage.', '依營運階段查看數量。'],
+      ['No funnel data', '目前沒有漏斗資料'],
+      ['Risks', '風險清單'],
+      ['Branches and classes needing attention.', '需要留意的分校與班級。'],
+      ['No risk data', '目前沒有風險資料'],
+      ['Class Health', '班級健康度'],
+      ['Quick view of class performance.', '快速查看班級表現。'],
+      ['No class health data', '目前沒有班級健康資料'],
+      ['Next Actions', '後續動作'],
+      ['Action items to handle next.', '下一步需要處理的項目。'],
+      ['No actions', '目前沒有後續動作'],
+      ['No comparison data', '目前沒有比較資料'],
+      ['No branch data', '目前沒有分校資料'],
+      ['No todo items', '目前沒有待辦項目'],
+      ['View', '查看'],
+      ['Home', '回首頁'],
+      ['Export Summary', '匯出摘要'],
+      ['Export', '匯出'],
+      ['Expected', '應填'],
+      ['Alignment', '對齊狀態'],
+      ['Needs revision', '需修正'],
+      ['Aligned', '已對齊'],
+      ['Pending', '待確認'],
+      ['Draft', '草稿'],
+      ['Needs Revision', '需修正'],
+      ['Period', '期別'],
+      ['Grade', '職等'],
+      ['Classes', '班級數'],
+      ['Students', '學生數'],
+      ['Extra / Sick', '加 / 病假'],
+      ['Net Transfer', '實發金額'],
+      ['Confirmed At', '確認時間'],
+      ['Other Income', '其他收入'],
+      ['Active Students', '在校學生'],
+      ['New Students', '新增學生'],
+      ['Class Count', '班級數'],
+      ['Risk / Lost', '風險 / 流失'],
+      ['Overall active student count.', '目前在校學生總數。'],
+      ['New student count for this period.', '本期新增的學生數量。'],
+      ['Total class count.', '目前班級總數。'],
+      ['Risk and lost student comparison.', '風險與流失學生對照。'],
+      ['Active', '在校'],
+      ['Net', '淨變動'],
+      ['Trial', '試上'],
+      ['Count: ', '數量：'],
+      ['Teacher: ', '老師：'],
+      ['New ', '新增 '],
+      ['There are ', '共有 '],
+      ['data warnings', '筆資料提醒'],
+      ['Reviewed ', '已審核 '],
+      ['Pending ', '待確認 '],
+      ['Teachers ', '老師 '],
+      ['Loaded Periods ', '已載入期別 '],
+      ['Anomalies ', '異常 '],
+      ['0 items', '0 筆'],
+      [' items', ' 筆'],
+      ['Share link copied', '分享連結已複製'],
+      ['Copy failed', '複製失敗'],
+      ['Clipboard is unavailable', '目前無法使用剪貼簿']
+    ];
+
+    function localizeText(text) {
+      var output = String(text == null ? '' : text);
+      localizationPairs.forEach(function (pair) {
+        output = output.split(pair[0]).join(pair[1]);
+      });
+      output = output.replace(/\bBranch A\b/g, '分校 A');
+      output = output.replace(/\bBranch B\b/g, '分校 B');
+      output = output.replace(/\bConfirmed\b/g, '已確認');
+      output = output.replace(/\bManager Pending\b/g, '主管待審');
+      output = output.replace(/\bAnomaly Count\b/g, '異常筆數');
+      output = output.replace(/\bLoaded Periods\b/g, '已載入期別');
+      return output;
+    }
+
+    function localizeDom(root) {
+      var scope = root || document.body;
+      if (!scope) return;
+      var walker = document.createTreeWalker(scope, NodeFilter.SHOW_TEXT, null, false);
+      var textNodes = [];
+      while (walker.nextNode()) textNodes.push(walker.currentNode);
+      textNodes.forEach(function (node) {
+        var nextValue = localizeText(node.nodeValue);
+        if (nextValue !== node.nodeValue) node.nodeValue = nextValue;
+      });
+
+      Array.prototype.slice.call(scope.querySelectorAll('[data-detail-title],[data-detail-body],[data-detail-meta],[title],[aria-label]')).forEach(function (node) {
+        ['data-detail-title', 'data-detail-body', 'data-detail-meta', 'title', 'aria-label'].forEach(function (attr) {
+          if (node.hasAttribute && node.hasAttribute(attr)) {
+            var value = node.getAttribute(attr);
+            var next = localizeText(value);
+            if (next !== value) node.setAttribute(attr, next);
+          }
+        });
+      });
+    }
+
+    function showToast(message) {
+      if (!dom.toast) return;
+      dom.toast.textContent = localizeText(message);
+      dom.toast.hidden = false;
+      window.clearTimeout(toastTimer);
+      toastTimer = window.setTimeout(function () {
+        dom.toast.hidden = true;
+      }, 2200);
+    }
+
+    function openDetail(title, body, meta) {
+      if (dom.detailTitle) dom.detailTitle.textContent = localizeText(title || '明細');
+      if (dom.detailBody) dom.detailBody.textContent = localizeText(body || '請選擇左側項目查看內容。');
+      if (dom.detailMeta) dom.detailMeta.textContent = localizeText(meta || '');
+    }
+
+    function getAllBranchLabel() {
+      var branches = (data.shared && data.shared.branches) || [];
+      return branches[0] && branches[0].branch_name ? branches[0].branch_name : '全部分校';
+    }
+
+    function getMasterBranchNames() {
+
+      return ((data.shared && data.shared.branches) || [])
+        .map(function (item) { return item.branch_name; })
+        .filter(function (name) {
+          return name && name !== getAllBranchLabel();
+        });
+    }
+
+    function isAllBranchSelected() {
+      return !state.branch || state.branch === getAllBranchLabel();
+    }
+
+    function branchMatches(item) {
+      var names = Array.isArray(item.branch_names) ? item.branch_names : [];
+      return isAllBranchSelected() || !item.branch_name || item.branch_name === state.branch || names.indexOf(state.branch) >= 0;
+    }
+
+    function periodMatches(item) {
+      return !item.period_id || item.period_id === state.period;
+    }
+
+    function filterItems(items) {
+      return (items || []).filter(function (item) {
+        return branchMatches(item) && periodMatches(item);
+      });
+    }
+
+    function collectUniqueValues(rows, key) {
+      var lookup = {};
+      (rows || []).forEach(function (item) {
+        if (item && item[key]) lookup[item[key]] = true;
+      });
+      return Object.keys(lookup);
+    }
+
+    function sortDescByPeriod(rows) {
+      return (rows || []).slice().sort(function (a, b) {
+        return String(b.period_id || '').localeCompare(String(a.period_id || ''));
+      });
+    }
+
+    function ensureSelectedValue(currentValue, options, fallbackValue) {
+      if (currentValue && options.indexOf(currentValue) >= 0) return currentValue;
+      if (fallbackValue && options.indexOf(fallbackValue) >= 0) return fallbackValue;
+      return options.length ? options[0] : fallbackValue || '';
+    }
+
+    function tagHtml(status) {
+      var classMap = {
+        draft: 'tag-draft',
+        submitted: 'tag-submitted',
+        reviewed: 'tag-reviewed',
+        needs_revision: 'tag-revision',
+        missing: 'tag-revision',
+        confirmed: 'tag-reviewed',
+        teacher_pending: 'tag-submitted',
+        manager_review: 'tag-submitted',
+        needs_fix: 'tag-revision'
+      };
+      return '<span class="tag ' + (classMap[status] || 'tag-draft') + '">' + escapeHtml(statusLabels[status] || status || '-') + '</span>';
+    }
+
+        function layoutWrap(content) {
+      return content + '<div class="footer-note">資料來源：Dashboard 正式資料庫、月報 API 與薪資 API。</div>';
+    }
+
+    function summarizeMonthlyRows(rows) {
+      return (rows || []).reduce(function (summary, item) {
+        summary.period_id = summary.period_id || item.period_id || state.period;
+        summary.expected_reports += Number(item.expected_reports || 0);
+        summary.draft_reports += Number(item.draft_reports || 0);
+        summary.submitted_reports += Number(item.submitted_reports || 0);
+        summary.reviewed_reports += Number(item.reviewed_reports || 0);
+        summary.needs_revision_reports += Number(item.needs_revision_reports || 0);
+        summary.pending_total += Number(item.pending_total || 0);
+        return summary;
+      }, {
+        period_id: state.period,
+        expected_reports: 0,
+        draft_reports: 0,
+        submitted_reports: 0,
+        reviewed_reports: 0,
+        needs_revision_reports: 0,
+        pending_total: 0
+      });
+    }
+
+    function summarizePayrollRows(rows) {
+      return (rows || []).reduce(function (summary, item) {
+        summary.period_id = summary.period_id || item.period_id || state.period;
+        summary.teacher_count += Number(item.teacher_count || 0);
+        summary.confirmed_teachers += Number(item.confirmed_teachers || 0);
+        summary.teacher_pending += Number(item.teacher_pending || 0);
+        summary.manager_pending += Number(item.manager_pending || 0);
+        summary.anomaly_count += Number(item.anomaly_count || 0);
+        return summary;
+      }, {
+        period_id: state.period,
+        teacher_count: 0,
+        confirmed_teachers: 0,
+        teacher_pending: 0,
+        manager_pending: 0,
+        anomaly_count: 0
+      });
+    }
+
+    function summarizeOperationsRows(rows) {
+      return (rows || []).reduce(function (summary, item) {
+        summary.period_id = summary.period_id || item.period_id || state.period;
+        summary.active_students += Number(item.active_students || 0);
+        summary.new_students += Number(item.new_students || 0);
+        summary.risk_count += Number(item.risk_count || 0);
+        summary.class_count += Number(item.class_count || 0);
+        summary.net_change += Number(item.net_change || 0);
+        summary.inquiry_count += Number(item.inquiry_count || 0);
+        summary.test_count += Number(item.test_count || 0);
+        summary.trial_total += Number(item.trial_total || 0);
+        summary.transfer_count += Number(item.transfer_count || 0);
+        summary.lost_count += Number(item.lost_count || 0);
+        summary.effective_calls += Number(item.effective_calls || 0);
+        return summary;
+      }, {
+        period_id: state.period,
+        active_students: 0,
+        new_students: 0,
+        risk_count: 0,
+        class_count: 0,
+        net_change: 0,
+        inquiry_count: 0,
+        test_count: 0,
+        trial_total: 0,
+        transfer_count: 0,
+        lost_count: 0,
+        effective_calls: 0
+      });
+    }
+
+    function renderMonthlyStatusBadge(status) {
+      return tagHtml(status === 'missing' ? 'missing' : status);
+    }
+
+    function buildMonthlyStatusLabel(status) {
+      var labels = {
+        draft: '草稿',
+        submitted: '已送出',
+        reviewed: '已審核',
+        needs_revision: '需修正',
+        missing: '缺件'
+      };
+      return labels[status] || statusLabels[status] || status || '-';
+    }
+
+    function parseJson(value) {
+      if (!value) return {};
+      if (typeof value === 'object') return value;
+      try {
+        return JSON.parse(String(value));
+      } catch (error) {
+        return {};
+      }
+    }
+
+    function formatMonthlyValue(value, depth) {
+      var currentDepth = depth || 0;
+      if (value === null || value === undefined || value === '') return '';
+      if (currentDepth > 2) return Array.isArray(value) ? '多筆資料' : '[物件]';
+
+      if (Array.isArray(value)) {
+        if (!value.length) return '0 筆';
+        return value.slice(0, 3).map(function (item) {
+          return formatMonthlyValue(item, currentDepth + 1);
+        }).filter(Boolean).join(' / ');
+      }
+
+      if (typeof value === 'object') {
+        return Object.keys(value).slice(0, 5).map(function (key) {
+          return key + ':' + formatMonthlyValue(value[key], currentDepth + 1);
+        }).filter(Boolean).join(' / ');
+      }
+
+      return String(value).replace(/\[object Object\]/g, '[物件]');
+    }
+
+    function summarizeMonthlyReportData(raw) {
+      var parsed = parseJson(raw);
+      if (!parsed || (typeof parsed === 'object' && !Array.isArray(parsed) && !Object.keys(parsed).length)) {
+        return { text: '', searchable: '', breakdown: [] };
+      }
+
+      if (Array.isArray(parsed)) {
+        var preview = parsed.slice(0, 3).map(function (item) {
+          return formatMonthlyValue(item);
+        }).join(' / ');
+        return {
+          text: 'Array data: ' + parsed.length + ' items' + (preview ? '. ' + preview : ''),
+          searchable: preview,
+          breakdown: [{ label: 'Array', value: parsed.length + ' items' }]
+        };
+      }
+
+      var sections = [];
+      var searchable = [];
+      Object.keys(parsed).slice(0, 8).forEach(function (key) {
+        var value = parsed[key];
+        if (value === null || value === undefined || value === '') return;
+        var textValue = formatMonthlyValue(value);
+        sections.push(key + ': ' + textValue);
+        searchable.push(key + ' ' + textValue);
+      });
+
+      return {
+        text: sections.join('\n'),
+        searchable: searchable.join(' '),
+        breakdown: sections.map(function (item) {
+          var parts = item.split(': ');
+          return { label: parts[0], value: parts.slice(1).join(': ') };
+        })
+      };
+    }
+
+    function summarizeMonthlyReviewHistory(raw) {
+      var parsed = parseJson(raw);
+      var items = [];
+      if (Array.isArray(parsed)) {
+        items = parsed;
+      } else if (parsed && Array.isArray(parsed.history)) {
+        items = parsed.history;
+      } else if (parsed && Array.isArray(parsed.items)) {
+        items = parsed.items;
+      } else if (parsed && Array.isArray(parsed.records)) {
+        items = parsed.records;
+      } else if (parsed && Object.keys(parsed).length) {
+        items = [parsed];
+      } else if (raw) {
+        items = [{ note: String(raw) }];
+      }
+
+      var normalized = items.map(function (item) {
+        var row = typeof item === 'object' ? item : { note: String(item) };
+        return {
+          reviewer: row.reviewer || row.reviewer_name || row.reviewerName || row.name || '',
+          reviewed_at: formatDateTime(row.reviewed_at || row.reviewedAt || row.time || row.timestamp || ''),
+          note: row.note || row.comment || row.message || row.review_note || row.reviewerNote || formatMonthlyValue(item),
+          status: row.status || row.result || ''
+        };
+      });
+
+      var text = normalized.map(function (item) {
+        return [item.reviewed_at, item.reviewer, item.status, item.note].filter(Boolean).join(' ');
+      }).filter(Boolean).join('\n');
+
+      return {
+        items: normalized,
+        text: text,
+        latest_note: normalized.length ? (normalized[0].note || '') : '',
+        searchable: text
+      };
+    }
+
+    function summarizeMonthlyScores(raw) {
+      var parsed = parseJson(raw);
+      var breakdown = [];
+      if (!parsed || (typeof parsed === 'object' && !Array.isArray(parsed) && !Object.keys(parsed).length)) {
+        return { text: '', searchable: '', breakdown: [] };
+      }
+
+      if (Array.isArray(parsed)) {
+        parsed.slice(0, 6).forEach(function (item, index) {
+          breakdown.push({ label: '#' + (index + 1), value: formatMonthlyValue(item) });
+        });
+      } else {
+        Object.keys(parsed).slice(0, 8).forEach(function (key) {
+          var value = parsed[key];
+          if (value === null || value === undefined || value === '') return;
+          breakdown.push({ label: key, value: formatMonthlyValue(value) });
+        });
+      }
+
+      return {
+        text: breakdown.map(function (item) {
+          return item.label + ': ' + item.value;
+        }).join('\n'),
+        searchable: breakdown.map(function (item) {
+          return item.label + ' ' + item.value;
+        }).join(' '),
+        breakdown: breakdown
+      };
+    }
+
+    function buildMonthlyDetailBody(item) {
+      var lines = [
+        '分校：' + formatMonthlyValue(item.branch_name || '-'),
+        '老師：' + formatMonthlyValue(item.employee_name || '-'),
+        '角色：' + formatMonthlyValue(item.role_type || '-'),
+        '狀態：' + buildMonthlyStatusLabel(item.status),
+        '送出時間：' + formatMonthlyValue(item.submitted_at || '-'),
+        '審核時間：' + formatMonthlyValue(item.reviewed_at || '-'),
+        '下一步：' + formatMonthlyValue(item.next_step || '-')
+      ];
+      if (item.review_note) lines.push('審核備註：' + formatMonthlyValue(item.review_note));
+      if (item.review_history_text) lines.push('審核歷程：' + formatMonthlyValue(item.review_history_text));
+      if (item.data_summary) lines.push('月報內容：' + formatMonthlyValue(item.data_summary));
+      if (item.score_summary) lines.push('評分摘要：' + formatMonthlyValue(item.score_summary));
+      return lines.join('\n');
+    }
+
+    function getMonthlyReportIndex(reports) {
+      return (reports || []).reduce(function (index, item) {
+        var periodId = String(item.period_id || '');
+        var keys = [];
+        if (item.user_id) keys.push(String(item.user_id) + '::' + periodId);
+        if (item.employee_name) keys.push(String(item.employee_name) + '::' + periodId);
+        if (item.staff_code) keys.push(String(item.staff_code) + '::' + periodId);
+        keys.forEach(function (key) {
+          if (key && !index[key]) index[key] = item;
+        });
+        return index;
+      }, {});
+    }
+
+    function collectMonthlyRosterPeriods(reports, roster) {
+      var periods = collectUniqueValues((data.shared && data.shared.periods) || [], 'period_id');
+      collectUniqueValues(reports || [], 'period_id').forEach(function (periodId) {
+        if (periods.indexOf(periodId) < 0) periods.push(periodId);
+      });
+      collectUniqueValues(roster || [], 'period_id').forEach(function (periodId) {
+        if (periods.indexOf(periodId) < 0) periods.push(periodId);
+      });
+      if (state.period && periods.indexOf(state.period) < 0) periods.unshift(state.period);
+      return periods.filter(Boolean);
+    }
+
+    function buildMonthlyRosterEntry(user, periodId, reportIndex) {
+      var report = null;
+      var keys = [
+        String(user.user_id || '') + '::' + periodId,
+        String(user.employee_name || '') + '::' + periodId,
+        String(user.staff_code || '') + '::' + periodId
+      ];
+      for (var i = 0; i < keys.length; i += 1) {
+        if (reportIndex[keys[i]]) {
+          report = reportIndex[keys[i]];
+          break;
+        }
+      }
+
+      var status = report ? (report.status || 'draft') : 'missing';
+      var detailBody = buildMonthlyDetailBody({
+        branch_name: user.branch_name,
+        employee_name: user.employee_name,
+        role_type: user.role_type || user.title,
+        status: status,
+        submitted_at: report && report.submitted_at,
+        reviewed_at: report && report.reviewed_at,
+        review_note: report && report.review_note,
+        review_history_text: report && report.review_history_text,
+        data_summary: report && report.data_summary,
+        score_summary: report && report.score_summary,
+        next_step: report && report.next_step ? report.next_step : 'Please complete the report'
+      });
+
+      return {
+        period_id: periodId,
+        user_id: user.user_id,
+        employee_name: user.employee_name || (report && report.employee_name) || '',
+        branch_name: user.branch_name || (report && report.branch_name) || '',
+        role_type: user.role_type || (report && report.role_type) || '',
+        title: user.title || user.role_type || '',
+        staff_code: user.staff_code || '',
+        account: user.account || '',
+        report_id: report && report.report_id ? report.report_id : '',
+        status: status,
+        submitted_at: report && report.submitted_at ? report.submitted_at : '',
+        reviewed_at: report && report.reviewed_at ? report.reviewed_at : '',
+        updated_at: report && report.updated_at ? report.updated_at : '',
+        review_note: report && report.review_note ? report.review_note : '',
+        review_history_text: report && report.review_history_text ? report.review_history_text : '',
+        data_summary: report && report.data_summary ? report.data_summary : '',
+        score_summary: report && report.score_summary ? report.score_summary : '',
+        next_step: report && report.next_step ? report.next_step : '請完成月報',
+        has_report: !!report,
+        is_missing: !report,
+        searchable: [
+          user.employee_name,
+          user.branch_name,
+          user.role_type,
+          user.title,
+          user.staff_code,
+          status,
+          report && report.review_note,
+          report && report.review_history_text,
+          report && report.data_summary,
+          report && report.score_summary
+        ].filter(Boolean).join(' '),
+        detail_body: detailBody
+      };
+    }
+
+    function getMonthlyRosterEntries() {
+      var roster = (data.monthly && data.monthly.submission_roster) || [];
+      if (roster.length) return roster;
+
+      var userDirectory = (data.monthly && data.monthly.user_directory) || [];
+      var reports = (data.monthly && data.monthly.report_queue) || [];
+      var reportIndex = getMonthlyReportIndex(reports);
+      var periods = collectMonthlyRosterPeriods(reports, roster);
+      var entries = [];
+
+      periods.forEach(function (periodId) {
+        userDirectory.forEach(function (user) {
+          entries.push(buildMonthlyRosterEntry(user, periodId, reportIndex));
+        });
+      });
+
+      return entries;
+    }
+
+    function getMonthlyContext() {
+      var allRoster = getMonthlyRosterEntries();
+      var periodRoster = allRoster.filter(periodMatches);
+      var actualReports = ((data.monthly && data.monthly.report_queue) || []).filter(function (item) {
+        return periodMatches(item) && branchMatches(item);
+      });
+      var masterBranches = getMasterBranchNames();
+      var actualBranches = collectUniqueValues(periodRoster, 'branch_name');
+      var branchSource = masterBranches.length ? masterBranches : actualBranches;
+
+      var branchRows = branchSource.map(function (branchName) {
+        var rows = periodRoster.filter(function (item) {
+          return item.branch_name === branchName;
+        });
+        return {
+          branch_name: branchName,
+          period_id: state.period,
+          expected_reports: rows.length,
+          draft_reports: rows.filter(function (item) { return item.status === 'draft' || item.status === 'missing'; }).length,
+          submitted_reports: rows.filter(function (item) { return item.status === 'submitted'; }).length,
+          reviewed_reports: rows.filter(function (item) { return item.status === 'reviewed'; }).length,
+          needs_revision_reports: rows.filter(function (item) { return item.status === 'needs_revision'; }).length,
+          pending_total: rows.filter(function (item) { return item.status === 'draft' || item.status === 'missing' || item.status === 'needs_revision'; }).length,
+          data_state: rows.length ? 'live' : 'pending_source'
+        };
+      });
+
+      if (!branchRows.some(function (item) { return item.expected_reports > 0; }) && actualBranches.length) {
+        branchSource = actualBranches;
+        branchRows = branchSource.map(function (branchName) {
+          var rows = periodRoster.filter(function (item) {
+            return item.branch_name === branchName;
+          });
+          return {
+            branch_name: branchName,
+            period_id: state.period,
+            expected_reports: rows.length,
+            draft_reports: rows.filter(function (item) { return item.status === 'draft' || item.status === 'missing'; }).length,
+            submitted_reports: rows.filter(function (item) { return item.status === 'submitted'; }).length,
+            reviewed_reports: rows.filter(function (item) { return item.status === 'reviewed'; }).length,
+            needs_revision_reports: rows.filter(function (item) { return item.status === 'needs_revision'; }).length,
+            pending_total: rows.filter(function (item) { return item.status === 'draft' || item.status === 'missing' || item.status === 'needs_revision'; }).length,
+            data_state: rows.length ? 'live' : 'pending_source'
+          };
+        });
+      }
+
+      var scopedBranchRows = isAllBranchSelected()
+        ? branchRows
+        : branchRows.filter(function (item) { return item.branch_name === state.branch; });
+
+      var scopedRoster = isAllBranchSelected()
+        ? periodRoster
+        : periodRoster.filter(branchMatches);
+
+      var scopedReports = actualReports.filter(function (item) {
+        return branchMatches(item);
+      });
+
+      var sourceBranches = collectUniqueValues(periodRoster.concat(actualReports), 'branch_name')
+        .filter(function (name) { return name !== getAllBranchLabel(); });
+      var unmappedSourceBranches = sourceBranches.filter(function (name) {
+        return masterBranches.indexOf(name) < 0;
+      });
+
+      return {
+        branchRows: branchRows,
+        scopedBranchRows: scopedBranchRows,
+        queue: scopedReports,
+        roster: scopedRoster,
+        missingRoster: scopedRoster.filter(function (item) { return item.is_missing; }),
+        reviewRoster: scopedRoster.filter(function (item) { return !item.is_missing; }),
+        summary: summarizeMonthlyRows(scopedBranchRows),
+        hasAlignedLiveData: scopedBranchRows.some(function (item) { return item.data_state === 'live'; }),
+        unmappedSourceBranches: unmappedSourceBranches
+      };
+    }
+
+    function getPayrollSummary() {
+      var rows = filterItems((data.payroll && data.payroll.branch_progress) || []);
+      if (rows.length) return summarizePayrollRows(rows);
+      return (data.payroll && data.payroll.summary_all) || summarizePayrollRows([]);
+    }
+
+    function getPayrollTeacherHistories() {
+      var grouped = {};
+      var records = (data.payroll && data.payroll.payroll_records) || [];
+      records.filter(function (item) {
+        return !item.branch_name || isAllBranchSelected() || item.branch_name === state.branch;
+      }).forEach(function (item) {
+        var key = item.employee_id || item.employee_name;
+        if (!grouped[key]) {
+          grouped[key] = {
+            employee_name: item.employee_name,
+            branch_name: item.branch_name,
+            payroll_grade: item.payroll_grade,
+            records: []
+          };
+        }
+        grouped[key].records.push(item);
+      });
+
+      return Object.keys(grouped).map(function (key) {
+        var teacher = grouped[key];
+        teacher.records = sortDescByPeriod(teacher.records);
+        teacher.current_record = teacher.records.filter(function (item) {
+          return item.period_id === state.period;
+        })[0] || teacher.records[0] || {};
+        teacher.confirmed_count = teacher.records.filter(function (item) {
+          return item.confirm_status === 'confirmed';
+        }).length;
+        teacher.pending_count = teacher.records.length - teacher.confirmed_count;
+        return teacher;
+      }).sort(function (a, b) {
+        return String(a.employee_name || '').localeCompare(String(b.employee_name || ''), 'en-US');
+      });
+    }
+
+    function getOperationsContext() {
+      var branchRows = filterItems((data.operations && data.operations.branch_compare) || []);
+      return {
+        summary: branchRows.length
+          ? summarizeOperationsRows(branchRows)
+          : ((data.operations && data.operations.summary_all) || summarizeOperationsRows([])),
+        branchRows: branchRows,
+        funnel: filterItems((data.operations && data.operations.funnel) || []),
+        risks: filterItems((data.operations && data.operations.risks) || []),
+        classHealth: filterItems((data.operations && data.operations.class_health) || []),
+        actions: filterItems((data.operations && data.operations.actions) || [])
+      };
+    }
+
+    function hasNonZeroClassSize(item) {
+      var value = item.current_students;
+      if (value === undefined || value === null || value === '') return true;
+      return Number(value) !== 0;
+    }
+
+    function getHealthBand(item) {
+      var score = Number(item.health_score || 0);
+      if (score < 60) return 'red';
+      if (score < 80) return 'yellow';
+      return 'green';
+    }
+
+    function filterClassHealthByBand(items) {
+      var filter = state.healthFilter || 'all';
+      return items.filter(function (item) {
+        return filter === 'all' || getHealthBand(item) === filter;
+      });
+    }
+
+    function getOperationsCompareContext() {
+      var preferredBranches = [getAllBranchLabel(), '安興分校', '二重分校'];
+      var masterBranches = getMasterBranchNames();
+      var compareBranches = preferredBranches.filter(function (name) {
+        return masterBranches.indexOf(name) >= 0;
+      });
+      if (compareBranches.length < 2) compareBranches = masterBranches.slice(0, 2);
+
+      var sourceRows = (data.operations && data.operations.branch_compare || []).filter(function (item) {
+        return compareBranches.indexOf(item.branch_name) >= 0 && periodMatches(item);
+      });
+
+      return {
+        branches: compareBranches,
+        rows: compareBranches.map(function (branchName) {
+          var matched = sourceRows.filter(function (item) {
+            return item.branch_name === branchName;
+          })[0];
+          if (!matched) {
+            return {
+              branch_name: branchName,
+              period_id: state.period,
+              active_students: 0,
+              new_students: 0,
+              risk_count: 0,
+              class_count: 0,
+              net_change: 0,
+              inquiry_count: 0,
+              test_count: 0,
+              trial_total: 0,
+              transfer_count: 0,
+              lost_count: 0,
+              effective_calls: 0,
+              data_state: 'pending_source'
+            };
+          }
+          var row = cloneObject(matched);
+          row.data_state = 'live';
+          return row;
+        })
+      };
+    }
+
+    function getHomeQuickActions() {
+      return [
+        {
+          label: '查看月報',
+          meta: '直接進入月報頁，查看草稿、待處理與修正項目。',
+          route: 'monthly',
+          searchable: '月報 草稿 待處理 修正'
+        },
+        {
+          label: '查看薪資',
+          meta: '直接進入薪資頁，查看老師歷史薪資單與異常項目。',
+          route: 'payroll',
+          searchable: '薪資 老師 歷史 異常'
+        },
+        {
+          label: '查看營運',
+          meta: '直接進入營運頁，查看分校比較與風險提醒。',
+          route: 'operations',
+          searchable: '營運 分校 比較 風險'
+        }
+      ];
+    }
+
+    function renderHome() {
+      var monthly = getMonthlyContext().summary;
+      var payroll = getPayrollSummary();
+      var operations = getOperationsContext().summary;
+      var monthlyRate = monthly.expected_reports ? (monthly.reviewed_reports / monthly.expected_reports) * 100 : 0;
+      var payrollRate = payroll.teacher_count ? (payroll.confirmed_teachers / payroll.teacher_count) * 100 : 0;
+      var todoList = filterItems((data.home && data.home.todos) || []);
+      var quickActions = getHomeQuickActions();
+
+      var todoHtml = todoList.length ? todoList.map(function (item, index) {
+        return '<div class="todo-item" data-searchable="' + escapeHtml(item.searchable || item.title) + '">' +
+          '<div class="todo-body"><strong>' + escapeHtml(item.title || '-') + '</strong><div class="meta">' + escapeHtml(item.meta || '') + '</div></div>' +
+          '<button class="tiny-btn" type="button" data-todo-toggle>標記</button></div>';
+      }).join('') : '<div class="empty-state">目前沒有待辦項目</div>';
+
+      var quickHtml = quickActions.map(function (item, index) {
+        return '<button class="quick-item" type="button" data-route="' + escapeHtml(item.route) + '" data-searchable="' + escapeHtml(item.searchable || item.label) + '" data-detail-title="' + escapeHtml(item.label) + '" data-detail-body="' + escapeHtml(item.meta) + '" data-detail-meta="route=' + escapeHtml(routeLabels[item.route] || item.route) + '"' + (index === 0 ? ' data-detail-default="1"' : '') + '><strong>' + escapeHtml(item.label) + '</strong><div class="meta">' + escapeHtml(item.meta) + '</div></button>';
+      }).join('');
+
+      return layoutWrap(
+        '<section class="kpis">' +
+          '<button class="kpi-card" type="button" data-detail-default="1" data-detail-title="月報完成率" data-detail-body="目前月份的月報完成比例。" data-detail-meta="rate=' + formatPercent(monthlyRate) + '">' +
+            '<small>月報完成率</small><div class="kpi-value"><strong>' + formatPercent(monthlyRate) + '</strong></div><div class="meta">已審核 ' + monthly.reviewed_reports + ' / 應填 ' + monthly.expected_reports + '</div></button>' +
+          '<button class="kpi-card" type="button" data-detail-title="月報追件" data-detail-body="目前仍需關注或修正的月報。" data-detail-meta="pending=' + monthly.pending_total + '">' +
+            '<small>月報追件</small><div class="kpi-value"><strong>' + monthly.pending_total + '</strong></div><div class="meta">需修正 ' + monthly.needs_revision_reports + '</div></button>' +
+          '<button class="kpi-card" type="button" data-detail-title="薪資確認率" data-detail-body="老師薪資單的確認比例。" data-detail-meta="rate=' + formatPercent(payrollRate) + '">' +
+            '<small>薪資確認率</small><div class="kpi-value"><strong>' + formatPercent(payrollRate) + '</strong></div><div class="meta">已確認 ' + payroll.confirmed_teachers + ' / ' + payroll.teacher_count + '</div></button>' +
+          '<button class="kpi-card" type="button" data-detail-title="薪資異常" data-detail-body="薪資異常與待處理項目。" data-detail-meta="anomaly=' + payroll.anomaly_count + '">' +
+            '<small>薪資異常</small><div class="kpi-value"><strong>' + payroll.anomaly_count + '</strong></div><div class="meta">待處理 ' + payroll.teacher_pending + '</div></button>' +
+          '<button class="kpi-card" type="button" data-detail-title="在班學生" data-detail-body="整體在班學生數與淨變化。" data-detail-meta="active=' + operations.active_students + '">' +
+            '<small>在班學生</small><div class="kpi-value"><strong>' + operations.active_students + '</strong></div><div class="meta">淨變化 ' + escapeHtml(formatSignedNumber(operations.net_change)) + '</div></button>' +
+          '<button class="kpi-card" type="button" data-detail-title="風險追蹤" data-detail-body="目前風險與流失學生數。" data-detail-meta="risk=' + operations.risk_count + ' / lost=' + operations.lost_count + '">' +
+            '<small>風險追蹤</small><div class="kpi-value"><strong>' + operations.risk_count + ' / ' + operations.lost_count + '</strong></div><div class="meta">試讀 ' + operations.trial_total + '</div></button>' +
+        '</section>' +
+        '<section class="work-grid">' +
+          '<article class="panel glass" data-module-section="all"><div class="panel-header"><div><h2>快速動作</h2><p>直接切到對應模組處理重點項目。</p></div></div><div class="quick-list">' + quickHtml + '</div></article>' +
+          '<article class="panel glass" data-module-section="all"><div class="panel-header"><div><h2>待辦事項</h2><p>顯示目前最需要先處理的事情。</p></div></div><div class="todo-list">' + todoHtml + '</div></article>' +
+          '<article class="panel glass" data-module-section="all"><div class="panel-header"><div><h2>總覽</h2><p>三個系統的核心進度。</p></div></div><div class="notice-list">' +
+            '<div class="notice-item"><strong>月報</strong><div class="meta">應填 ' + monthly.expected_reports + '，已審核 ' + monthly.reviewed_reports + '，待處理 ' + monthly.pending_total + '</div></div>' +
+            '<div class="notice-item"><strong>薪資</strong><div class="meta">老師 ' + payroll.teacher_count + '，已確認 ' + payroll.confirmed_teachers + '，異常 ' + payroll.anomaly_count + '</div></div>' +
+            '<div class="notice-item"><strong>營運</strong><div class="meta">在班 ' + operations.active_students + '，淨變化 ' + escapeHtml(formatSignedNumber(operations.net_change)) + '，風險 ' + operations.risk_count + '</div></div>' +
+          '</div></article>' +
+        '</section>'
+      );
+    }
+
+    function renderMonthly() {
+      var context = getMonthlyContext();
+      var summary = context.summary;
+      var queue = context.queue;
+      var roster = context.roster;
+      var missingRoster = context.missingRoster.slice(0, 16);
+      var reviewRoster = context.reviewRoster.slice(0, 16);
+      var boardColumns = [
+        { title: '草稿', key: 'draft' },
+        { title: '已送出', key: 'submitted' },
+        { title: '需修正', key: 'needs_revision' },
+        { title: '已審核', key: 'reviewed' }
+      ];
+
+      var branchHtml = context.scopedBranchRows.map(function (item) {
+        var label = item.data_state === 'live' ? '已對齊' : '待對齊';
+        return '<div class="architecture-card"><div class="architecture-head"><strong>' + escapeHtml(item.branch_name) + '</strong><span class="status-chip ' + (item.data_state === 'live' ? 'status-normal' : 'status-warning') + '">' + label + '</span></div><div class="architecture-metrics"><span>應填 ' + item.expected_reports + '</span><span>已送出 ' + item.submitted_reports + '</span><span>待追件 ' + item.pending_total + '</span></div><div class="meta">已審核 ' + item.reviewed_reports + '，需修正 ' + item.needs_revision_reports + '</div></div>';
+      }).join('');
+
+      var rosterHtml = roster.slice(0, 30).map(function (item, index) {
+        var title = (item.employee_name || '-') + ' / ' + (item.branch_name || '-');
+        var body = buildMonthlyDetailBody(item);
+        return '<button class="queue-card" type="button"' + (index === 0 ? ' data-detail-default="1"' : '') + ' data-searchable="' + escapeHtml(item.searchable || title) + '" data-detail-title="' + escapeHtml(title) + '" data-detail-body="' + escapeHtml(body) + '" data-detail-meta="period=' + escapeHtml(item.period_id || state.period) + '"><strong>' + escapeHtml(item.employee_name || '-') + '</strong><div class="meta">' + escapeHtml(item.branch_name || '-') + ' | ' + escapeHtml(buildMonthlyStatusLabel(item.status)) + '</div></button>';
+      }).join('');
+
+      var boardHtml = boardColumns.map(function (column, columnIndex) {
+        var items = queue.filter(function (item) { return item.status === column.key; });
+        if (!items.length) {
+          return '<div class="board-column"><h3>' + escapeHtml(column.title) + '</h3><div class="board-count">0 筆</div><div class="empty-state">目前沒有資料</div></div>';
+        }
+        return '<div class="board-column"><h3>' + escapeHtml(column.title) + '</h3><div class="board-count">' + items.length + ' 筆</div>' + items.map(function (item, itemIndex) {
+          var detailBody = buildMonthlyDetailBody(item);
+          return '<button class="lane-card" type="button"' + (columnIndex === 0 && itemIndex === 0 ? ' data-detail-default="1"' : '') + ' data-searchable="' + escapeHtml(item.searchable || item.employee_name) + '" data-detail-title="' + escapeHtml((item.employee_name || '-') + ' / ' + (item.class_name || '-')) + '" data-detail-body="' + escapeHtml(detailBody) + '" data-detail-meta="status=' + escapeHtml(buildMonthlyStatusLabel(item.status)) + ' | submitted=' + escapeHtml(formatDateTime(item.submitted_at)) + '"><strong>' + escapeHtml(item.employee_name || '-') + '</strong><div class="meta">' + escapeHtml(item.branch_name || '-') + ' | ' + escapeHtml(item.class_name || '-') + '</div></button>';
+        }).join('') + '</div>';
+      }).join('');
+
+      var reportRows = queue.length ? queue.map(function (item) {
+        var detailBody = buildMonthlyDetailBody(item);
+        return '<tr data-searchable="' + escapeHtml(item.searchable || item.employee_name) + '"><td>' + escapeHtml(item.employee_name || '-') + '</td><td>' + escapeHtml(item.branch_name || '-') + '</td><td>' + renderMonthlyStatusBadge(item.status) + '</td><td>' + escapeHtml(formatDateTime(item.submitted_at)) + '</td><td>' + escapeHtml(formatDateTime(item.reviewed_at)) + '</td><td>' + escapeHtml(formatMonthlyValue(item.review_note || item.review_history_text || item.data_summary || item.score_summary || '-')) + '</td><td><button class="table-btn" type="button" data-detail-title="' + escapeHtml((item.employee_name || '-') + ' / ' + (item.period_id || state.period)) + '" data-detail-body="' + escapeHtml(detailBody) + '" data-detail-meta="report=' + escapeHtml(item.report_id || '') + '">' + escapeHtml(formatMonthlyValue(item.next_step || '查看內容')) + '</button></td></tr>';
+      }).join('') : '<tr><td colspan="7" class="empty-cell">目前沒有月報紀錄</td></tr>';
+
+      var missingHtml = missingRoster.length ? missingRoster.map(function (item, index) {
+        var detailBody = buildMonthlyDetailBody(item);
+        return '<button class="notice-item" type="button"' + (index === 0 ? ' data-detail-default="1"' : '') + ' data-searchable="' + escapeHtml(item.searchable || item.employee_name) + '" data-detail-title="' + escapeHtml((item.employee_name || '-') + ' / ' + (item.branch_name || '-')) + '" data-detail-body="' + escapeHtml(detailBody) + '" data-detail-meta="missing"><strong>' + escapeHtml(item.employee_name || '-') + '</strong><div class="meta">' + escapeHtml(item.branch_name || '-') + ' | 尚未送出</div></button>';
+      }).join('') : '<div class="empty-state">目前沒有待補名單</div>';
+
+      var reviewHtml = reviewRoster.length ? reviewRoster.map(function (item) {
+        var detailBody = buildMonthlyDetailBody(item);
+        return '<button class="notice-item" type="button" data-searchable="' + escapeHtml(item.searchable || item.employee_name) + '" data-detail-title="' + escapeHtml((item.employee_name || '-') + ' / ' + (item.period_id || state.period)) + '" data-detail-body="' + escapeHtml(detailBody) + '" data-detail-meta="review"><strong>' + escapeHtml(item.employee_name || '-') + '</strong><div class="meta">' + escapeHtml(formatMonthlyValue(item.review_note || item.review_history_text || item.data_summary || item.score_summary || item.next_step || '查看內容')) + '</div></button>';
+      }).join('') : '<div class="empty-state">目前沒有可檢視項目</div>';
+
+      var auditItems = [
+        {
+          label: '主資料對齊',
+          meta: context.hasAlignedLiveData ? '月報來源已對齊正式分校架構。' : '仍有來源分校尚未對應。'
+        }
+      ];
+      if (context.unmappedSourceBranches.length) {
+        auditItems.push({
+          label: '未對應來源分校',
+          meta: context.unmappedSourceBranches.join(' / ')
+        });
+      }
+      var auditHtml = auditItems.map(function (item) {
+        return '<button class="notice-item" type="button" data-detail-title="' + escapeHtml(item.label) + '" data-detail-body="' + escapeHtml(item.meta) + '" data-detail-meta="monthly"><strong>' + escapeHtml(item.label) + '</strong><div class="meta">' + escapeHtml(item.meta) + '</div></button>';
+      }).join('');
+
+      return layoutWrap(
+        '<section class="hero-panel glass"><div class="hero-top"><div><div class="brand-line"><span class="context-chip">應填 ' + summary.expected_reports + '</span><span class="context-chip">待追件 ' + summary.pending_total + '</span><span class="context-chip">需修正 ' + summary.needs_revision_reports + '</span></div><h2>月報追件總覽</h2><p>檢視各分校本期月報進度、追件名單與欄位檢查結果。</p></div><div class="button-row"><button class="soft-btn" type="button" data-action="fake-export">匯出摘要</button><button class="primary-btn" type="button" data-route="home">回首頁</button></div></div><div class="hero-strip"><button class="hero-card clickable-card" type="button" data-detail-title="應填月報" data-detail-body="目前條件下應填報的月報數量。" data-detail-meta="expected=' + summary.expected_reports + '"><small>應填</small><strong>' + summary.expected_reports + '</strong></button><button class="hero-card clickable-card" type="button" data-detail-title="已審核" data-detail-body="已送出或已審核的月報數量。" data-detail-meta="reviewed=' + summary.reviewed_reports + '"><small>已審核</small><strong>' + summary.reviewed_reports + '</strong></button><button class="hero-card clickable-card" type="button" data-detail-title="待追件" data-detail-body="目前仍需要追蹤的月報數量。" data-detail-meta="pending=' + summary.pending_total + '"><small>待追件</small><strong>' + summary.pending_total + '</strong></button><button class="hero-card clickable-card" type="button" data-detail-title="對齊狀態" data-detail-body="' + escapeHtml(context.hasAlignedLiveData ? '月報來源已對齊正式分校架構。' : '仍有來源分校尚未對應。') + '" data-detail-meta="unmapped=' + escapeHtml(context.unmappedSourceBranches.join(',')) + '"><small>對齊狀態</small><strong>' + escapeHtml(context.hasAlignedLiveData ? '已對齊' : '待對齊') + '</strong></button></div></section>' +
+        '<section class="three-column">' +
+          '<article class="panel glass"><div class="panel-header"><div><h2>分校進度</h2><p>依分校查看本期月報完成狀況。</p></div></div><div class="architecture-grid">' + (branchHtml || '<div class="empty-state">目前沒有分校資料</div>') + '</div></article>' +
+          '<article class="panel glass"><div class="panel-header"><div><h2>待補名單</h2><p>目前仍需要送出或修正的老師。</p></div></div><div class="notice-list">' + missingHtml + '</div></article>' +
+          '<article class="panel glass"><div class="panel-header"><div><h2>可檢視月報</h2><p>已送出或已審核的月報清單。</p></div></div><div class="notice-list">' + reviewHtml + '</div></article>' +
+        '</section>' +
+        '<section class="panel glass"><div class="panel-header"><div><h2>月報看板</h2><p>查看草稿、已送出、需修正與已審核的分布。</p></div></div><div class="board">' + boardHtml + '</div></section>' +
+        '<section class="panel glass"><div class="panel-header"><div><h2>月報清單</h2><p>可用老師、分校與內容摘要快速搜尋。</p></div></div><div class="table-wrap"><table><thead><tr><th>老師</th><th>分校</th><th>狀態</th><th>送出時間</th><th>審核時間</th><th>摘要</th><th>操作</th></tr></thead><tbody>' + reportRows + '</tbody></table></div></section>' +
+        '<section class="panel glass"><div class="panel-header"><div><h2>資料檢查</h2><p>確認月報資料是否已對齊正式架構。</p></div></div><div class="notice-list">' + auditHtml + '</div></section>'
+      );
+    }
+
+    function renderPayroll() {
+      var summary = getPayrollSummary();
+      var histories = getPayrollTeacherHistories();
+      var loadedPeriods = collectUniqueValues((data.payroll && data.payroll.payroll_records) || [], 'period_id');
+      var progressRows = filterItems((data.payroll && data.payroll.branch_progress) || []);
+      var anomalies = filterItems((data.payroll && data.payroll.anomalies) || []);
+      var checks = (data.payroll && data.payroll.lock_checklist) || [];
+
+      var progressHtml = progressRows.map(function (item) {
+        var rate = item.teacher_count ? Math.round((item.confirmed_teachers / item.teacher_count) * 100) : 0;
+        return '<div class="progress-block"><button class="progress-row" type="button" data-detail-title="' + escapeHtml(item.branch_name || '-') + '" data-detail-body="已確認 ' + item.confirmed_teachers + ' / ' + item.teacher_count + '，待確認 ' + item.teacher_pending + '。" data-detail-meta="progress=' + rate + '%"><span>' + escapeHtml(item.branch_name || '-') + '</span><strong>' + rate + '%</strong></button><div class="progress-track"><span style="width:' + rate + '%"></span></div></div>';
+      }).join('');
+
+      var queueHtml = anomalies.map(function (item, index) {
+        return '<button class="queue-card" type="button"' + (index === 0 ? ' data-detail-default="1"' : '') + ' data-searchable="' + escapeHtml(item.searchable || item.employee_name) + '" data-detail-title="' + escapeHtml((item.employee_name || '-') + ' / ' + (item.title || '-')) + '" data-detail-body="' + escapeHtml(item.meta || '') + '" data-detail-meta="period=' + escapeHtml(item.period_id || '') + '"><strong>' + escapeHtml((item.employee_name || '-') + ' / ' + (item.title || '-')) + '</strong><div class="meta">' + escapeHtml(item.meta || '') + '</div></button>';
+      }).join('');
+
+      var checkHtml = checks.map(function (item) {
+        return '<div class="todo-item"><div class="todo-body"><strong>' + escapeHtml(item.title || item.label || '-') + '</strong><div class="meta">' + escapeHtml(item.meta || '') + '</div></div></div>';
+      }).join('');
+
+      var teacherPanels = histories.length ? histories.map(function (teacher, index) {
+        var current = teacher.current_record || {};
+        var historyRows = teacher.records.map(function (record) {
+          return '<tr><td>' + escapeHtml(record.period_id || '-') + '</td><td>' + tagHtml(record.confirm_status) + '</td><td>' + escapeHtml(record.payroll_grade || '-') + '</td><td>' + Number(record.class_count || 0) + '</td><td>' + Number(record.student_total || 0) + '</td><td>' + Number(record.overtime_hours || 0) + ' / ' + Number(record.sick_leave_hours || 0) + '</td><td>' + escapeHtml(formatCurrency(record.net_transfer)) + '</td><td>' + escapeHtml(formatDateTime(record.confirmed_at)) + '</td><td>' + escapeHtml(record.other_income_note || '-') + '</td></tr>';
+        }).join('');
+
+        return '<details class="teacher-history"' + (index < 2 ? ' open' : '') + '><summary class="teacher-summary"><div class="teacher-summary-main"><strong>' + escapeHtml(teacher.employee_name || '-') + '</strong><div class="meta">' + escapeHtml((teacher.branch_name || '-') + ' / ' + (current.payroll_grade || teacher.payroll_grade || '-')) + '</div></div><div class="teacher-summary-stats"><span class="context-chip">期別 ' + escapeHtml(current.period_id || state.period) + '</span><span class="context-chip">已確認 ' + teacher.confirmed_count + '</span><span class="context-chip">待確認 ' + teacher.pending_count + '</span></div></summary><div class="teacher-history-body"><div class="teacher-current-strip"><div class="mini-kpi"><small>狀態</small><strong>' + escapeHtml(statusLabels[current.confirm_status] || current.confirm_status || '-') + '</strong></div><div class="mini-kpi"><small>實發金額</small><strong>' + escapeHtml(formatCurrency(current.net_transfer)) + '</strong></div><div class="mini-kpi"><small>備註</small><strong>' + escapeHtml(current.other_income_note || '-') + '</strong></div><div class="mini-kpi"><small>確認時間</small><strong>' + escapeHtml(formatDateTime(current.confirmed_at)) + '</strong></div></div><div class="table-wrap"><table><thead><tr><th>期別</th><th>狀態</th><th>職等</th><th>班級數</th><th>學生數</th><th>加班 / 病假</th><th>實發金額</th><th>確認時間</th><th>備註</th></tr></thead><tbody>' + historyRows + '</tbody></table></div></div></details>';
+      }).join('') : '<div class="empty-state">目前沒有薪資歷程</div>';
+
+      return layoutWrap(
+        '<section class="hero-panel glass"><div class="hero-top"><div><div class="brand-line"><span class="context-chip">老師 ' + summary.teacher_count + '</span><span class="context-chip">已載入期別 ' + loadedPeriods.length + '</span><span class="context-chip">待確認 ' + summary.teacher_pending + '</span><span class="context-chip">異常 ' + summary.anomaly_count + '</span></div><h2>老師薪資歷史</h2><p>薪資頁直接讀取 Payroll API，顯示每位老師的歷年薪資資料與異常狀況。</p></div><div class="button-row"><button class="soft-btn" type="button" data-action="fake-export">匯出摘要</button><button class="primary-btn" type="button" data-route="home">回首頁</button></div></div><div class="hero-strip"><button class="hero-card clickable-card" type="button" data-detail-title="已確認" data-detail-body="已完成確認的薪資紀錄數。" data-detail-meta="confirmed=' + summary.confirmed_teachers + '"><small>已確認</small><strong>' + summary.confirmed_teachers + '</strong></button><button class="hero-card clickable-card" type="button" data-detail-title="待確認" data-detail-body="仍在等待確認的薪資紀錄。" data-detail-meta="pending=' + summary.teacher_pending + '"><small>待確認</small><strong>' + summary.teacher_pending + '</strong></button><button class="hero-card clickable-card" type="button" data-detail-title="主管待審" data-detail-body="仍在等待主管處理的項目。" data-detail-meta="manager=' + summary.manager_pending + '"><small>主管待審</small><strong>' + summary.manager_pending + '</strong></button><button class="hero-card clickable-card" type="button" data-detail-title="異常筆數" data-detail-body="需要留意與處理的薪資異常。" data-detail-meta="anomaly=' + summary.anomaly_count + '"><small>異常筆數</small><strong>' + summary.anomaly_count + '</strong></button></div></section>' +
+        '<section class="three-column"><article class="panel glass"><div class="panel-header"><div><h2>分校確認進度</h2><p>查看各分校薪資確認狀況。</p></div></div><div class="progress-stack">' + (progressHtml || '<div class="empty-state">目前沒有分校進度</div>') + '</div></article><article class="panel glass"><div class="panel-header"><div><h2>異常項目</h2><p>需要先處理的薪資例外。</p></div></div><div class="todo-list">' + (queueHtml || '<div class="empty-state">目前沒有異常項目</div>') + '</div></article><article class="panel glass"><div class="panel-header"><div><h2>檢核清單</h2><p>結算薪資前需要再次確認的項目。</p></div></div><div class="todo-list">' + (checkHtml || '<div class="empty-state">目前沒有檢核項目</div>') + '</div></article></section>' +
+        '<section class="panel glass"><div class="panel-header"><div><h2>老師歷史薪資單</h2><p>每位老師可展開查看歷年薪資單。</p></div></div><div class="teacher-history-list">' + teacherPanels + '</div></section>'
+      );
+    }
+
+    function renderOperations() {
+      var context = getOperationsContext();
+      var summary = context.summary;
+      var compareContext = getOperationsCompareContext();
+      var activeRisks = context.risks.filter(hasNonZeroClassSize);
+      var activeClassHealth = context.classHealth.filter(hasNonZeroClassSize);
+      var healthCounts = activeClassHealth.reduce(function (counts, item) {
+        counts[getHealthBand(item)] += 1;
+        return counts;
+      }, { red: 0, yellow: 0, green: 0 });
+      var filteredClassHealth = filterClassHealthByBand(activeClassHealth);
+      var visibleRisks = activeRisks.slice(0, 6);
+      var visibleClassHealth = filteredClassHealth.slice(0, 8);
+      var visibleActions = context.actions.slice(0, 6);
+
+      var compareCards = compareContext.rows.map(function (item) {
+        var label = item.data_state === 'live' ? '已對齊' : '待對齊';
+        return '<div class="compare-card"><div class="compare-card-head"><strong>' + escapeHtml(item.branch_name || '-') + '</strong><span class="status-chip ' + (item.data_state === 'live' ? 'status-normal' : 'status-warning') + '">' + label + '</span></div><div class="compare-card-grid"><div><small>在校</small><strong>' + item.active_students + '</strong></div><div><small>淨變動</small><strong>' + escapeHtml(formatSignedNumber(item.net_change)) + '</strong></div><div><small>試上</small><strong>' + item.trial_total + '</strong></div><div><small>流失</small><strong>' + item.lost_count + '</strong></div></div></div>';
+      }).join('');
+
+      var compareRows = [
+        { label: '在校學生', key: 'active_students' },
+        { label: '淨變動', key: 'net_change', signed: true },
+        { label: '詢問數', key: 'inquiry_count' },
+        { label: '檢測數', key: 'test_count' },
+        { label: '試上總數', key: 'trial_total' },
+        { label: '轉入數', key: 'transfer_count' },
+        { label: '流失數', key: 'lost_count', lowerIsBetter: true }
+      ].map(function (metric) {
+        var leftRow = compareContext.rows[0] || {};
+        var rightRow = compareContext.rows[1] || {};
+        var left = Number(leftRow[metric.key] || 0);
+        var right = Number(rightRow[metric.key] || 0);
+        var winner = '持平';
+        if (left !== right) {
+          if (metric.lowerIsBetter) {
+            winner = left < right ? (compareContext.branches[0] || '') + ' 較佳' : (compareContext.branches[1] || '') + ' 較佳';
+          } else {
+            winner = left > right ? (compareContext.branches[0] || '') + ' 較佳' : (compareContext.branches[1] || '') + ' 較佳';
+          }
+        }
+        return '<tr><td>' + escapeHtml(metric.label) + '</td><td>' + escapeHtml(metric.signed ? formatSignedNumber(left) : String(left)) + '</td><td>' + escapeHtml(metric.signed ? formatSignedNumber(right) : String(right)) + '</td><td>' + escapeHtml(winner) + '</td></tr>';
+      }).join('');
+
+      var funnelHtml = context.funnel.map(function (item) {
+        return '<button class="funnel-step" type="button" data-detail-title="' + escapeHtml(item.stage || '-') + '" data-detail-body="數量：' + item.count + '。" data-detail-meta="count=' + item.count + '"><span>' + escapeHtml(item.stage || '-') + '</span><strong>' + item.count + '</strong></button>';
+      }).join('');
+
+      var riskHtml = visibleRisks.map(function (item, index) {
+        return '<button class="risk-card" type="button"' + (index === 0 ? ' data-detail-default="1"' : '') + ' data-searchable="' + escapeHtml(item.searchable || item.class_name || item.title) + '" data-detail-title="' + escapeHtml((item.class_name || item.title || '-') + ' / ' + (item.title || '')) + '" data-detail-body="' + escapeHtml(item.meta || '') + '" data-detail-meta="teacher=' + escapeHtml(item.teacher_name || '-') + '"><strong>' + escapeHtml((item.class_name || item.title || '-') + ' / ' + (item.title || '')) + '</strong><div class="meta">' + escapeHtml(item.meta || '') + '</div></button>';
+      }).join('');
+
+      var healthHtml = visibleClassHealth.map(function (item) {
+        return '<button class="health-item" type="button" data-searchable="' + escapeHtml(item.searchable || item.class_name || '') + '" data-detail-title="' + escapeHtml(item.class_name || '-') + '" data-detail-body="老師：' + escapeHtml(item.teacher_name || '-') + '" data-detail-meta="score=' + item.health_score + '"><div><strong>' + escapeHtml(item.class_name || '-') + '</strong><div class="meta">老師 ' + escapeHtml(item.teacher_name || '-') + ' | 新增 ' + item.new_students + '</div></div><div class="health-score">' + item.health_score + '</div></button>';
+      }).join('');
+      var healthFilterHtml = [
+        ['all', '全部', activeClassHealth.length],
+        ['red', '紅', healthCounts.red],
+        ['yellow', '黃', healthCounts.yellow],
+        ['green', '綠', healthCounts.green]
+      ].map(function (item) {
+        var active = (state.healthFilter || 'all') === item[0];
+        return '<button class="health-filter-btn ' + (active ? 'active' : '') + '" type="button" data-health-filter="' + item[0] + '">' + item[1] + ' ' + item[2] + '</button>';
+      }).join('');
+
+      var actionsHtml = visibleActions.map(function (item) {
+        return '<button class="action-card" type="button" data-searchable="' + escapeHtml(item.searchable || item.title || '') + '" data-detail-title="' + escapeHtml(item.title || '-') + '" data-detail-body="' + escapeHtml(item.meta || '') + '" data-detail-meta="operations"><strong>' + escapeHtml(item.title || '-') + '</strong><div class="meta">' + escapeHtml(item.meta || '') + '</div></button>';
+      }).join('');
+
+      return layoutWrap(
+        '<section class="hero-panel glass"><div class="hero-top"><div><div class="brand-line"><span class="context-chip">在校 ' + summary.active_students + '</span><span class="context-chip">淨變動 ' + escapeHtml(formatSignedNumber(summary.net_change)) + '</span><span class="context-chip">試上 ' + summary.trial_total + '</span></div><h2>二重 / 安興 分校比較表</h2><p>營運頁聚焦二重與安興分校的比較、風險與後續動作。</p></div><div class="button-row"><button class="soft-btn" type="button" data-action="fake-export">匯出摘要</button><button class="primary-btn" type="button" data-route="home">回首頁</button></div></div><div class="hero-strip"><button class="hero-card clickable-card" type="button" data-detail-title="在校學生" data-detail-body="目前在校學生總數。" data-detail-meta="active=' + summary.active_students + '"><small>在校學生</small><strong>' + summary.active_students + '</strong></button><button class="hero-card clickable-card" type="button" data-detail-title="新增學生" data-detail-body="本期新增的學生數量。" data-detail-meta="new=' + summary.new_students + '"><small>新增學生</small><strong>' + summary.new_students + '</strong></button><button class="hero-card clickable-card" type="button" data-detail-title="班級數" data-detail-body="目前班級總數。" data-detail-meta="class=' + summary.class_count + '"><small>班級數</small><strong>' + summary.class_count + '</strong></button><button class="hero-card clickable-card" type="button" data-detail-title="風險 / 流失" data-detail-body="風險與流失學生對照。" data-detail-meta="risk=' + summary.risk_count + ' / lost=' + summary.lost_count + '"><small>風險 / 流失</small><strong>' + summary.risk_count + ' / ' + summary.lost_count + '</strong></button></div></section>' +
+        '<section class="panel glass"><div class="panel-header"><div><h2>二重 / 安興 分校比較表</h2><p>並排比較兩個分校的主要營運指標。</p></div></div><div class="compare-card-row">' + (compareCards || '<div class="empty-state">目前沒有比較資料</div>') + '</div><div class="table-wrap"><table><thead><tr><th>指標</th><th>' + escapeHtml(compareContext.branches[0] || '分校 A') + '</th><th>' + escapeHtml(compareContext.branches[1] || '分校 B') + '</th><th>判讀</th></tr></thead><tbody>' + compareRows + '</tbody></table></div></section>' +
+        '<section class="three-column"><article class="panel glass"><div class="panel-header"><div><h2>營運漏斗</h2><p>依營運階段查看數量。</p></div></div><div class="funnel">' + (funnelHtml || '<div class="empty-state">目前沒有漏斗資料</div>') + '</div></article><article class="panel glass"><div class="panel-header"><div><h2>風險清單</h2><p>需要留意的分校與班級。</p></div></div><div class="risk-list">' + (riskHtml || '<div class="empty-state">目前沒有風險資料</div>') + '</div></article><article class="panel glass"><div class="panel-header"><div><h2>班級健康度</h2><p>快速查看班級表現。</p></div><div class="health-filter-group">' + healthFilterHtml + '</div></div><div class="class-health">' + (healthHtml || '<div class="empty-state">目前沒有班級健康資料</div>') + '</div></article></section>' +
+        '<section class="panel glass"><div class="panel-header"><div><h2>後續動作</h2><p>下一步需要處理的項目。</p></div></div><div class="action-list">' + (actionsHtml || '<div class="empty-state">目前沒有後續動作</div>') + '</div></section>'
+      );
+    }
+
+    function renderRoute() {
+      state.route = normalizeRoute(state.route || defaults.route);
+      if (state.route === 'home') {
+        state.scope = state.scope || 'all';
+        dom.main.innerHTML = renderHome();
+      } else if (state.route === 'monthly') {
+        state.scope = 'monthly';
+        dom.main.innerHTML = renderMonthly();
+      } else if (state.route === 'payroll') {
+        state.scope = 'payroll';
+        dom.main.innerHTML = renderPayroll();
+      } else {
+        state.scope = 'operations';
+        dom.main.innerHTML = renderOperations();
+      }
+    }
+
+    function updateShell() {
+      dom.routeLabels.forEach(function (el) {
+        el.textContent = routeLabels[state.route] || '首頁';
+      });
+      dom.branches.forEach(function (el) {
+        el.textContent = state.branch;
+      });
+      dom.periods.forEach(function (el) {
+        el.textContent = state.period;
+      });
+
+      if (dom.dataSource) {
+        var sourceLabel = (bootstrap.source && bootstrap.source.label) || '正式資料來源';
+        var warnings = (bootstrap.source && bootstrap.source.warnings) || [];
+        dom.dataSource.textContent = warnings.length ? sourceLabel + ' · ' + warnings.length + ' 筆提醒' : sourceLabel;
+        dom.dataSource.title = warnings.join('\n');
+      }
+
+      dom.routeLinks.forEach(function (link) {
+        var targetRoute = normalizeRoute(link.getAttribute('data-route-link'));
+        var active = targetRoute === state.route;
+        link.href = buildShareUrl({ route: targetRoute });
+        if (publicWebAppUrl) link.target = '_top';
+        link.classList.toggle('active', active);
+        if (active) link.setAttribute('aria-current', 'page');
+        else link.removeAttribute('aria-current');
+      });
+
+      dom.scopeLinks.forEach(function (button) {
+        var target = button.getAttribute('data-scope-link');
+        var active = state.route === 'home' ? state.scope === target : target === state.route;
+        button.classList.toggle('active', active);
+      });
+    }
+
+    function hydrateFilterControls() {
+      var branchOptions = (data.shared && data.shared.branches) || [];
+      var periodOptions = (data.shared && data.shared.periods) || [];
+
+      dom.branch.innerHTML = branchOptions.map(function (item) {
+        return '<option value="' + escapeHtml(item.branch_name) + '">' + escapeHtml(item.branch_name) + '</option>';
+      }).join('');
+
+      dom.period.innerHTML = periodOptions.map(function (item) {
+        return '<option value="' + escapeHtml(item.period_id) + '">' + escapeHtml(item.label || item.period_id) + '</option>';
+      }).join('');
+
+      state.branch = ensureSelectedValue(
+        state.branch,
+        branchOptions.map(function (item) { return item.branch_name; }),
+        defaults.branch || getAllBranchLabel()
+      );
+      state.period = ensureSelectedValue(
+        state.period,
+        periodOptions.map(function (item) { return item.period_id; }),
+        defaults.period
+      );
+
+      dom.branch.value = state.branch;
+      dom.period.value = state.period;
+      dom.search.value = state.keyword;
+    }
+
+    function applyHomeScope() {
+      if (state.route !== 'home') return;
+      Array.prototype.slice.call(document.querySelectorAll('[data-module-section]')).forEach(function (node) {
+        var group = node.getAttribute('data-module-section');
+        node.hidden = state.scope !== 'all' && group !== 'all' && group !== state.scope;
+      });
+    }
+
+    function applyKeyword() {
+      var keyword = String(state.keyword || '').trim().toLowerCase();
+      Array.prototype.slice.call(dom.main.querySelectorAll('[data-searchable], tr[data-searchable]')).forEach(function (node) {
+        if (!keyword) {
+          node.hidden = false;
+          return;
+        }
+        node.hidden = String(node.getAttribute('data-searchable') || '').toLowerCase().indexOf(keyword) < 0;
+      });
+    }
+
+    function applyDefaultDetail() {
+      var target = dom.main.querySelector('[data-detail-default="1"]') || dom.main.querySelector('[data-detail-title]');
+      if (!target) return;
+      openDetail(
+        target.getAttribute('data-detail-title'),
+        target.getAttribute('data-detail-body'),
+        target.getAttribute('data-detail-meta')
+      );
+    }
+
+    function showSourceWarnings() {
+      var warnings = (bootstrap.source && bootstrap.source.warnings) || [];
+      if (!warnings.length) return;
+      showToast('\u5171\u6709 ' + warnings.length + ' \u7b46\u8cc7\u6599\u63d0\u9192');
+    }
+
+    function renderApp() {
+      hydrateFilterControls();
+      renderRoute();
+      updateShell();
+      applyHomeScope();
+      applyKeyword();
+      applyDefaultDetail();
+      localizeDom(document.body);
+      syncUrlState(false);
+      saveState();
+    }
+
+    function toggleModal(show) {
+      if (!dom.modal) return;
+      dom.modal.hidden = !show;
+      document.body.classList.toggle('modal-open', !!show);
+    }
+
+    function copyShareUrl() {
+      var url = buildShareUrl();
+      if (!navigator.clipboard || !navigator.clipboard.writeText) {
+        showToast('Clipboard is unavailable');
+        return;
+      }
+      navigator.clipboard.writeText(url)
+        .then(function () { showToast('Share link copied'); })
+        .catch(function () { showToast('Copy failed'); });
+    }
+
+    function navigateTo(route) {
+      var nextRoute = normalizeRoute(route);
+      if (publicWebAppUrl && window.top && window.top !== window) {
+        window.top.location.href = buildShareUrl({ route: nextRoute });
+        return;
+      }
+      state.route = nextRoute;
+      saveState();
+      syncUrlState(true);
+      renderApp();
+    }
+
+    function bindEvents() {
+      if (dom.branch) {
+        dom.branch.addEventListener('change', function () {
+          state.branch = dom.branch.value;
+          renderApp();
+        });
+      }
+      if (dom.period) {
+        dom.period.addEventListener('change', function () {
+          state.period = dom.period.value;
+          renderApp();
+        });
+      }
+      if (dom.search) {
+        dom.search.addEventListener('input', function () {
+          state.keyword = dom.search.value;
+          applyKeyword();
+          syncUrlState(false);
+          saveState();
+        });
+      }
+
+      window.addEventListener('popstate', function () {
+        state = mergeState(mergeState(mergeState(defaults, loadState()), requestedState), readUrlState());
+        renderApp();
+      });
+      window.addEventListener('hashchange', function () {
+        state = mergeState(mergeState(mergeState(defaults, loadState()), requestedState), readUrlState());
+        renderApp();
+      });
+
+      document.addEventListener('click', function (event) {
+        var routeLinkNode = event.target.closest('[data-route-link]');
+        if (routeLinkNode) {
+          if (publicWebAppUrl) return;
+          event.preventDefault();
+          navigateTo(routeLinkNode.getAttribute('data-route-link'));
+          return;
+        }
+
+        var routeNode = event.target.closest('[data-route]');
+        if (routeNode) {
+          navigateTo(routeNode.getAttribute('data-route'));
+          return;
+        }
+
+        var scopeNode = event.target.closest('[data-scope-link]');
+        if (scopeNode) {
+          var scope = scopeNode.getAttribute('data-scope-link');
+          if (state.route === 'home') {
+            state.scope = scope;
+            updateShell();
+            applyHomeScope();
+            saveState();
+          } else {
+            navigateTo(scope === 'all' ? 'home' : scope);
+          }
+          return;
+        }
+
+        var healthFilterNode = event.target.closest('[data-health-filter]');
+        if (healthFilterNode) {
+          state.healthFilter = healthFilterNode.getAttribute('data-health-filter') || 'all';
+          renderApp();
+          return;
+        }
+
+        var detailNode = event.target.closest('[data-detail-title]');
+        if (detailNode) {
+          openDetail(
+            detailNode.getAttribute('data-detail-title'),
+            detailNode.getAttribute('data-detail-body'),
+            detailNode.getAttribute('data-detail-meta')
+          );
+        }
+
+        if (event.target.closest('[data-open-settings]')) {
+          toggleModal(true);
+          return;
+        }
+        if (event.target.closest('[data-close-settings]')) {
+          toggleModal(false);
+          return;
+        }
+        if (event.target.closest("[data-action='refresh-data']")) {
+          showToast('Refreshing data');
+          window.location.reload();
+          return;
+        }
+        if (event.target.closest("[data-action='save-view']")) {
+          saveState();
+          copyShareUrl();
+          return;
+        }
+        if (event.target.closest("[data-action='fake-export']")) {
+          showToast('Export entry opened');
+          return;
+        }
+        if (event.target.closest('[data-todo-toggle]')) {
+          var todoItem = event.target.closest('.todo-item');
+          if (todoItem) todoItem.classList.toggle('is-done');
+        }
+      });
+    }
+
+    bindEvents();
+    renderApp();
+    showSourceWarnings();
+  })();
+</script>
