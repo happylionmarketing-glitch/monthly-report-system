@@ -57,6 +57,9 @@ import type {
   ReportFilters,
   ReportStatus,
   ReviewHistoryEntry,
+  StudentMovementDigest,
+  StudentMovementReminderItem,
+  StudentMovementType,
   TeacherReport,
   TeacherWorkRecord,
   User,
@@ -78,6 +81,56 @@ function formatDateTime(value: string | null) {
     hour: '2-digit',
     minute: '2-digit',
   });
+}
+
+function formatDateLabel(value: string) {
+  return new Date(`${value}T00:00:00`).toLocaleDateString('zh-TW', {
+    month: 'numeric',
+    day: 'numeric',
+    weekday: 'short',
+  });
+}
+
+function formatMovementWindow(windowStart: string, windowEnd: string) {
+  return `${formatDateLabel(windowStart)} - ${formatDateLabel(windowEnd)}`;
+}
+
+function formatMovementUpdatedAt(value: string) {
+  return new Date(value).toLocaleString('zh-TW', {
+    month: 'numeric',
+    day: 'numeric',
+    hour: '2-digit',
+    minute: '2-digit',
+  });
+}
+
+function movementTypeTone(type: StudentMovementType) {
+  if (type === 'loss') {
+    return 'loss';
+  }
+  if (type === 'trial') {
+    return 'trial';
+  }
+  if (type === 'transfer_in' || type === 'transfer_out') {
+    return 'transfer';
+  }
+  return 'insert';
+}
+
+function groupMovementItemsByDate(items: StudentMovementReminderItem[]) {
+  const groups = new Map<string, StudentMovementReminderItem[]>();
+
+  items.forEach((item) => {
+    const key = item.eventDate ?? item.eventDateLabel;
+    const existing = groups.get(key) ?? [];
+    existing.push(item);
+    groups.set(key, existing);
+  });
+
+  return Array.from(groups.entries()).map(([date, entries]) => ({
+    date,
+    entries,
+  }));
 }
 
 function scoreLabel(value: number | null) {
@@ -137,7 +190,7 @@ function App() {
 
         setAuthUser(user);
         setLoginAccount(user.account);
-        setActiveView(user.role === 'manager' ? 'manage' : 'fill');
+        setActiveView(user.role === 'manager' ? 'dashboard' : 'fill');
       })
       .catch(() => {
         clearAuthToken();
@@ -257,7 +310,7 @@ function App() {
         setAuthUser(session.user);
         setLoginAccount(session.user.account);
         setLoginPassword('');
-        setActiveView(session.user.role === 'manager' ? 'manage' : 'fill');
+        setActiveView(session.user.role === 'manager' ? 'dashboard' : 'fill');
         setLoading(true);
       })
       .catch((error: unknown) => {
@@ -354,6 +407,7 @@ function App() {
   }
 
   const dashboard = bootstrap?.dashboard;
+  const studentMovementDigest = bootstrap?.studentMovementDigest;
   const selectedSummary = currentReport?.scores ?? {
     performance: 0,
     selfEvaluation: 0,
@@ -522,7 +576,11 @@ function App() {
             </p>
           </div>
           <div className="status-pair">
-            <StatusBadge status={currentReport?.status ?? 'draft'} />
+            {currentUser.role !== 'manager' && currentReport ? (
+              <StatusBadge status={currentReport.status} />
+            ) : studentMovementDigest ? (
+              <StatusBadge status="submitted" label={`異動 ${studentMovementDigest.summary.totalUpcoming} 筆`} />
+            ) : null}
             <StatusBadge status="reviewed" label={`完成率 ${dashboard?.metrics.completionRate ?? 0}%`} />
           </div>
         </header>
@@ -624,6 +682,10 @@ function App() {
               <MetricCard title="待追蹤人數" value={`${dashboard.metrics.pendingCount}`} icon={<Users size={20} />} tone="blue" />
               <MetricCard title="平均總分" value={`${dashboard.metrics.averageScore}`} icon={<BarChart3 size={20} />} tone="ink" />
             </div>
+
+            {studentMovementDigest ? (
+              <StudentMovementPanel digest={studentMovementDigest} />
+            ) : null}
 
             <div className="panel">
               <PanelHeader
@@ -1816,6 +1878,111 @@ function SectionTitle({ title, description }: { title: string; description: stri
     <div className="section-title">
       <h4>{title}</h4>
       <p>{description}</p>
+    </div>
+  );
+}
+
+function StudentMovementPanel({ digest }: { digest: StudentMovementDigest }) {
+  const groupedUpcoming = groupMovementItemsByDate(digest.upcoming);
+
+  return (
+    <div className="panel movement-panel">
+      <PanelHeader
+        icon={<LayoutDashboard size={18} />}
+        title="未來兩週學生異動提醒"
+        description="直接整理二重分校 Dashboard 資料庫裡未來 14 天需要盯的插班、轉入、轉出、流失與試讀。"
+      />
+
+      <div className="movement-summary-grid">
+        <div className="movement-summary-card emphasized">
+          <span>提醒期間</span>
+          <strong>{formatMovementWindow(digest.windowStart, digest.windowEnd)}</strong>
+          <p>來源更新：{formatMovementUpdatedAt(digest.source.sourceUpdatedAt)}</p>
+        </div>
+        <div className="movement-summary-card">
+          <span>兩週內事件</span>
+          <strong>{digest.summary.totalUpcoming}</strong>
+          <p>待排日期 {digest.summary.totalPendingWithoutDate} 筆</p>
+        </div>
+        <div className="movement-summary-card">
+          <span>插班 / 轉入</span>
+          <strong>{digest.summary.insertCount + digest.summary.transferInCount}</strong>
+          <p>插班 {digest.summary.insertCount}｜轉入 {digest.summary.transferInCount}</p>
+        </div>
+        <div className="movement-summary-card">
+          <span>轉出 / 流失</span>
+          <strong>{digest.summary.transferOutCount + digest.summary.lossCount}</strong>
+          <p>轉出 {digest.summary.transferOutCount}｜流失 {digest.summary.lossCount}</p>
+        </div>
+      </div>
+
+      <div className="content-grid movement-grid">
+        <div className="movement-column">
+          <div className="movement-column-header">
+            <strong>已排進未來 14 天的提醒</strong>
+            <span>{digest.summary.totalUpcoming ? `${digest.summary.totalUpcoming} 筆` : '目前沒有新事件'}</span>
+          </div>
+          {groupedUpcoming.length ? (
+            <div className="movement-day-list">
+              {groupedUpcoming.map((group) => (
+                <div className="movement-day-card" key={group.date}>
+                  <div className="movement-day-header">
+                    <strong>{group.entries[0]?.eventDate ? formatDateLabel(group.entries[0].eventDate) : group.date}</strong>
+                    <span>{group.entries.length} 筆</span>
+                  </div>
+                  <div className="movement-item-list">
+                    {group.entries.map((item) => (
+                      <MovementItemCard item={item} key={item.id} />
+                    ))}
+                  </div>
+                </div>
+              ))}
+            </div>
+          ) : (
+            <p className="empty-state">目前資料裡還沒有落在這 14 天內的學生異動。</p>
+          )}
+        </div>
+
+        <div className="movement-column">
+          <div className="movement-column-header">
+            <strong>待排日期 / 待確認</strong>
+            <span>{digest.summary.totalPendingWithoutDate} 筆</span>
+          </div>
+          {digest.undatedPending.length ? (
+            <div className="movement-item-list">
+              {digest.undatedPending.map((item) => (
+                <MovementItemCard item={item} key={item.id} />
+              ))}
+            </div>
+          ) : (
+            <p className="empty-state">目前沒有待排日期的學生異動。</p>
+          )}
+        </div>
+      </div>
+    </div>
+  );
+}
+
+function MovementItemCard({ item }: { item: StudentMovementReminderItem }) {
+  return (
+    <div className="movement-item-card">
+      <div className="movement-item-top">
+        <div>
+          <strong>{item.studentName}</strong>
+          <p>{item.className} 班｜{item.eventDateLabel}</p>
+        </div>
+        <span className={clsx('movement-type-badge', `type-${movementTypeTone(item.movementType)}`)}>
+          {item.rawActionLabel}
+        </span>
+      </div>
+      <div className="movement-meta-row">
+        <span className={clsx('status-badge', item.status === 'pending' ? 'status-needs_revision' : 'status-reviewed')}>
+          {item.statusLabel}
+        </span>
+        <span>{item.daysUntil === null ? '待排日期' : `還有 ${item.daysUntil} 天`}</span>
+        <span>資料列 {item.sourceRow}</span>
+      </div>
+      <p>{item.sourceNote}</p>
     </div>
   );
 }

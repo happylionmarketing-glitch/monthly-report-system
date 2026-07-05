@@ -8,6 +8,7 @@ import {
   buildReportDocxBuffer,
   buildReportPdfBuffer,
 } from './reportExport.mjs';
+import { buildStudentMovementDigest } from './studentMovement.mjs';
 import {
   createBlankReport,
   decorateReport,
@@ -366,6 +367,7 @@ app.get('/api/bootstrap', async (req, res) => {
     roles,
     statuses,
     dashboard: buildDashboard(month, db.reports, db.users),
+    studentMovementDigest: buildStudentMovementDigest(),
     recentReports: db.reports
       .filter((report) => report.month === month)
       .map((report) => decorateReport(report, db.users))

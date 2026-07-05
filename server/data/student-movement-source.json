@@ -1,0 +1,196 @@
+{
+  "source": {
+    "spreadsheetId": "1XmOjAzSvXLcxrF6cu4akq3rnaKe2teHRDG1cvIkWB_o",
+    "spreadsheetTitle": "二重分校 Dashboard 資料庫",
+    "spreadsheetUrl": "https://docs.google.com/spreadsheets/d/1XmOjAzSvXLcxrF6cu4akq3rnaKe2teHRDG1cvIkWB_o/edit",
+    "sheetName": "weekly_classes",
+    "snapshotRecordId": "record-1782972778683",
+    "snapshotWeekStart": "2026-06-29",
+    "snapshotWeekEnd": "2026-07-03",
+    "sourceUpdatedAt": "2026-07-02T22:43:50+08:00",
+    "capturedAt": "2026-07-04T00:00:00+08:00",
+    "notes": "來自 Google Drive 最新二重分校 Dashboard 資料庫的 weekly_classes 備註欄快照。"
+  },
+  "rows": [
+    {
+      "rowNumber": 1051,
+      "recordId": "record-1782972778683",
+      "className": "B",
+      "base": 9,
+      "add": 1,
+      "lost": 0,
+      "note": "Ilia流失、Emma7/7進班"
+    },
+    {
+      "rowNumber": 1052,
+      "recordId": "record-1782972778683",
+      "className": "D",
+      "base": 5,
+      "add": 3,
+      "lost": 0,
+      "note": "Vicky7/2已流失、Hedy、Jainise、Amy7/27進班"
+    },
+    {
+      "rowNumber": 1053,
+      "recordId": "record-1782972778683",
+      "className": "F",
+      "base": 17,
+      "add": 2,
+      "lost": 2,
+      "note": "Rosie7/6插班、Kyle7/9插班、Fiona9月轉班、Tommy7/16流失"
+    },
+    {
+      "rowNumber": 1054,
+      "recordId": "record-1782972778683",
+      "className": "G",
+      "base": 18,
+      "add": 1,
+      "lost": 0,
+      "note": "Fiona9月轉入"
+    },
+    {
+      "rowNumber": 1057,
+      "recordId": "record-1782972778683",
+      "className": "K",
+      "base": 17,
+      "add": 0,
+      "lost": 1,
+      "note": "Laura7/2轉入、Nick8/31轉L"
+    },
+    {
+      "rowNumber": 1058,
+      "recordId": "record-1782972778683",
+      "className": "L",
+      "base": 11,
+      "add": 1,
+      "lost": 0,
+      "note": "Nick9/17轉入"
+    },
+    {
+      "rowNumber": 1059,
+      "recordId": "record-1782972778683",
+      "className": "M",
+      "base": 8,
+      "add": 0,
+      "lost": 0,
+      "note": "Laura6/30轉出"
+    },
+    {
+      "rowNumber": 1060,
+      "recordId": "record-1782972778683",
+      "className": "N",
+      "base": 17,
+      "add": 5,
+      "lost": 2,
+      "note": "Ryan待轉出、Ian待轉出、Benjamin7/13待轉入、Sunny8/17轉入、Louis8/17轉入、Herman8/17轉入、Henry8/17轉入"
+    },
+    {
+      "rowNumber": 1061,
+      "recordId": "record-1782972778683",
+      "className": "O",
+      "base": 11,
+      "add": 0,
+      "lost": 6,
+      "note": "Max翁、Max徐、Louis、Herman、Henry待轉出、Darren7/8流失"
+    },
+    {
+      "rowNumber": 1062,
+      "recordId": "record-1782972778683",
+      "className": "P",
+      "base": 14,
+      "add": 2,
+      "lost": 3,
+      "note": "Jack7/9轉出、Sunny7/9轉出、Max翁7/13轉入、Max徐7/13轉入"
+    },
+    {
+      "rowNumber": 1064,
+      "recordId": "record-1782972778683",
+      "className": "R",
+      "base": 16,
+      "add": 1,
+      "lost": 0,
+      "note": "Joann九月轉入"
+    },
+    {
+      "rowNumber": 1065,
+      "recordId": "record-1782972778683",
+      "className": "T",
+      "base": 12,
+      "add": 0,
+      "lost": 0,
+      "note": "Mechelle、Mia、Naomi6/29流失"
+    },
+    {
+      "rowNumber": 1066,
+      "recordId": "record-1782972778683",
+      "className": "U",
+      "base": 17,
+      "add": 1,
+      "lost": 0,
+      "note": "Jack7/27轉入"
+    },
+    {
+      "rowNumber": 1067,
+      "recordId": "record-1782972778683",
+      "className": "V",
+      "base": 16,
+      "add": 2,
+      "lost": 0,
+      "note": "Yann待轉入、Woody九月轉入"
+    },
+    {
+      "rowNumber": 1069,
+      "recordId": "record-1782972778683",
+      "className": "X",
+      "base": 18,
+      "add": 0,
+      "lost": 2,
+      "note": "Jane7/17流失、Yann9月待轉出"
+    },
+    {
+      "rowNumber": 1070,
+      "recordId": "record-1782972778683",
+      "className": "Y",
+      "base": 17,
+      "add": 0,
+      "lost": 1,
+      "note": "Yuna6/30流失、Nita7/17流失"
+    },
+    {
+      "rowNumber": 1071,
+      "recordId": "record-1782972778683",
+      "className": "GEPT",
+      "base": 5,
+      "add": 0,
+      "lost": 1,
+      "note": "Sylvia待流失"
+    },
+    {
+      "rowNumber": 1073,
+      "recordId": "record-1782972778683",
+      "className": "PBW",
+      "base": 2,
+      "add": 1,
+      "lost": 2,
+      "note": "Smiling待插班、Jay等新班、Joanna待流失"
+    },
+    {
+      "rowNumber": 1074,
+      "recordId": "record-1782972778683",
+      "className": "國中班",
+      "base": 4,
+      "add": 1,
+      "lost": 0,
+      "note": "Katrina6/30試讀"
+    },
+    {
+      "rowNumber": 1075,
+      "recordId": "record-1782972778683",
+      "className": "ESL",
+      "base": 1,
+      "add": 2,
+      "lost": 0,
+      "note": "Owen、Rexson8/2進班"
+    }
+  ]
+}

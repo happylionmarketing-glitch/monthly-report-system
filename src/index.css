@@ -659,6 +659,155 @@ button {
 .tone-blue { background: linear-gradient(135deg, #2c7991, #214f71); }
 .tone-ink { background: linear-gradient(135deg, #1f2e45, #294d5f); }
 
+.movement-panel {
+  background:
+    radial-gradient(circle at top right, rgba(223, 142, 34, 0.14), transparent 30%),
+    linear-gradient(180deg, rgba(255, 253, 248, 0.98) 0%, rgba(247, 244, 236, 0.95) 100%);
+}
+
+.movement-summary-grid,
+.movement-item-list,
+.movement-day-list {
+  display: grid;
+  gap: 14px;
+}
+
+.movement-summary-grid {
+  grid-template-columns: repeat(4, minmax(0, 1fr));
+  margin-bottom: 18px;
+}
+
+.movement-summary-card,
+.movement-day-card,
+.movement-item-card {
+  border-radius: 22px;
+}
+
+.movement-summary-card {
+  padding: 18px;
+  background: rgba(255, 255, 255, 0.88);
+  border: 1px solid rgba(215, 201, 170, 0.45);
+  display: grid;
+  gap: 6px;
+}
+
+.movement-summary-card.emphasized {
+  background: linear-gradient(135deg, #183742, #2e6870);
+  color: #f8f5eb;
+}
+
+.movement-summary-card span {
+  color: #6a6f77;
+  font-size: 0.9rem;
+}
+
+.movement-summary-card.emphasized span,
+.movement-summary-card.emphasized p {
+  color: rgba(248, 245, 235, 0.84);
+}
+
+.movement-summary-card strong {
+  font-size: 1.35rem;
+}
+
+.movement-summary-card p {
+  margin: 0;
+  color: #666b73;
+}
+
+.movement-grid {
+  grid-template-columns: minmax(0, 1.45fr) minmax(280px, 0.75fr);
+}
+
+.movement-column {
+  display: grid;
+  gap: 12px;
+}
+
+.movement-column-header,
+.movement-day-header,
+.movement-item-top,
+.movement-meta-row {
+  display: flex;
+  justify-content: space-between;
+  gap: 10px;
+  align-items: center;
+}
+
+.movement-column-header span,
+.movement-day-header span,
+.movement-meta-row span,
+.movement-item-top p {
+  color: #666b73;
+  font-size: 0.92rem;
+}
+
+.movement-day-card {
+  padding: 16px;
+  background: rgba(255, 255, 255, 0.82);
+  border: 1px solid rgba(215, 201, 170, 0.45);
+}
+
+.movement-day-header {
+  margin-bottom: 12px;
+}
+
+.movement-item-card {
+  padding: 16px;
+  background: #fffdf8;
+  border: 1px solid rgba(31, 40, 53, 0.08);
+}
+
+.movement-item-top {
+  align-items: flex-start;
+}
+
+.movement-item-top strong {
+  display: block;
+  margin-bottom: 4px;
+}
+
+.movement-item-top p,
+.movement-item-card p {
+  margin: 0;
+  line-height: 1.6;
+}
+
+.movement-meta-row {
+  margin: 12px 0;
+  flex-wrap: wrap;
+}
+
+.movement-type-badge {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  border-radius: 999px;
+  padding: 7px 12px;
+  font-size: 0.84rem;
+  font-weight: 600;
+}
+
+.movement-type-badge.type-insert {
+  background: rgba(223, 142, 34, 0.14);
+  color: #a86410;
+}
+
+.movement-type-badge.type-transfer {
+  background: rgba(44, 121, 145, 0.14);
+  color: #215b72;
+}
+
+.movement-type-badge.type-loss {
+  background: rgba(189, 87, 64, 0.15);
+  color: #924434;
+}
+
+.movement-type-badge.type-trial {
+  background: rgba(47, 139, 107, 0.14);
+  color: #246149;
+}
+
 .role-stat-grid {
   grid-template-columns: repeat(2, minmax(0, 1fr));
   margin-bottom: 20px;
@@ -945,6 +1094,7 @@ button {
 
   .score-overview-grid,
   .metric-grid,
+  .movement-summary-grid,
   .identity-strip,
   .role-stat-grid,
   .summary-chip-grid,
@@ -969,12 +1119,14 @@ button {
 
   .score-overview-grid,
   .metric-grid,
+  .movement-summary-grid,
   .identity-strip,
   .field-grid.three-up,
   .filter-grid,
   .toggle-cluster,
   .role-stat-grid,
   .summary-chip-grid,
+  .movement-grid,
   .report-table-head,
   .report-row,
   .leaderboard-row,

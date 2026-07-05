@@ -1,0 +1,3238 @@
+<!DOCTYPE html>
+<html>
+  <head>
+    <base target="_top">
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>月報填報系統</title>
+    <style>
+      :root {
+        color-scheme: light;
+        --bg: #f6f1e8;
+        --panel: rgba(255, 255, 255, 0.94);
+        --panel-2: #fffaf0;
+        --ink: #1d2430;
+        --muted: #6b7280;
+        --brand: #d9891e;
+        --brand-2: #2e9d8b;
+        --line: rgba(29, 36, 48, 0.1);
+      }
+      * { box-sizing: border-box; }
+      body {
+        margin: 0;
+        font-family: "Segoe UI", "Noto Sans TC", sans-serif;
+        background:
+          radial-gradient(circle at top left, rgba(255, 209, 148, 0.5), transparent 32%),
+          radial-gradient(circle at bottom right, rgba(73, 162, 152, 0.2), transparent 30%),
+          linear-gradient(180deg, #fffdf8, #f3efe8);
+        color: var(--ink);
+      }
+      .shell {
+        min-height: 100vh;
+        display: grid;
+        grid-template-rows: auto 1fr;
+      }
+      .sidebar {
+        padding: 24px;
+        background: #10222c;
+        color: #f8f5eb;
+        display: grid;
+        gap: 18px;
+      }
+      .brand {
+        padding: 18px;
+        border-radius: 20px;
+        background: linear-gradient(135deg, rgba(240, 178, 73, 0.24), rgba(255, 255, 255, 0.06));
+      }
+      .app-header {
+        position: sticky;
+        top: 0;
+        z-index: 20;
+        display: grid;
+        grid-template-columns: minmax(220px, 1fr) auto minmax(280px, auto) auto;
+        gap: 12px;
+        align-items: center;
+        padding: 14px 24px;
+        background: rgba(16, 34, 44, 0.97);
+        color: #f8f5eb;
+        box-shadow: 0 14px 40px rgba(16, 34, 44, 0.18);
+        backdrop-filter: blur(10px);
+      }
+      .app-header .brand {
+        padding: 0;
+        border-radius: 0;
+        background: transparent;
+      }
+      .app-header .muted { color: rgba(248,245,235,.72); }
+      .app-header .field {
+        min-width: 160px;
+        margin-bottom: 0;
+      }
+      .app-header .field span { color: rgba(248,245,235,.82); }
+      .app-header .field input {
+        background: rgba(255,255,255,.11);
+        border-color: rgba(255,255,255,.22);
+        color: #fff;
+      }
+      .user-strip {
+        display: flex;
+        align-items: center;
+        justify-content: flex-end;
+        gap: 12px;
+      }
+      .user-strip strong { display: block; }
+      .brand h1, .brand p { margin: 0; }
+      .eyebrow { text-transform: uppercase; letter-spacing: .12em; color: #ffcf87; font-size: .78rem; }
+      .nav button, .btn, .ghost {
+        border: 0;
+        border-radius: 14px;
+        padding: 12px 14px;
+        cursor: pointer;
+      }
+      .nav { display: flex; gap: 10px; flex-wrap: wrap; }
+      .nav button { background: rgba(255,255,255,.08); color: #fff; text-align: center; white-space: nowrap; }
+      .nav button.active { background: linear-gradient(135deg, #ffcf87, #d9891e); color: #1d2430; }
+      .main {
+        padding: 24px;
+        display: grid;
+        gap: 18px;
+      }
+      .topbar { display: flex; justify-content: space-between; gap: 12px; align-items: flex-start; }
+      .topbar h2 { margin: 4px 0; }
+      .muted { color: var(--muted); }
+      .panel {
+        background: var(--panel);
+        border: 1px solid rgba(255,255,255,.85);
+        border-radius: 10px;
+        padding: 18px;
+        box-shadow: 0 18px 60px rgba(48, 45, 33, 0.08);
+      }
+      .grid-4, .grid-2, .chip-grid, .report-grid, .form-grid, .workbench, .side-stack, .metrics-grid, .text-stack { display: grid; gap: 12px; }
+      .grid-4 { grid-template-columns: repeat(4, minmax(0, 1fr)); }
+      .grid-2 { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+      .chip-grid { grid-template-columns: repeat(3, minmax(0, 1fr)); }
+      .workbench { grid-template-columns: minmax(240px, 300px) minmax(0, 1fr); align-items: start; }
+      .context-rail { position: sticky; top: 110px; align-self: start; }
+      .content-stack { display: grid; gap: 14px; min-width: 0; }
+      .metrics-grid { grid-template-columns: repeat(3, minmax(0, 1fr)); align-items: start; }
+      .text-stack { grid-template-columns: 1fr; }
+      .paired-fields {
+        display: grid;
+        grid-template-columns: minmax(160px, 0.36fr) minmax(0, 1fr);
+        gap: 12px;
+        align-items: start;
+      }
+      .paired-fields .field { margin-bottom: 0; }
+      .confirm-grid {
+        display: grid;
+        grid-template-columns: repeat(2, minmax(0, 1fr));
+        gap: 10px;
+        margin-top: 12px;
+      }
+      .confirm-item {
+        border: 1px solid var(--line);
+        background: #fff;
+        border-radius: 14px;
+        padding: 10px 12px;
+      }
+      .confirm-item strong { display:block; margin-bottom: 4px; }
+      .score-section {
+        display: grid;
+        gap: 12px;
+      }
+      .score-section h5 {
+        margin: 4px 0 0;
+        font-size: 1rem;
+      }
+      .score-row {
+        display: grid;
+        grid-template-columns: minmax(180px, 0.9fr) minmax(220px, 1.2fr) minmax(96px, 0.35fr);
+        gap: 12px;
+        align-items: stretch;
+        padding: 12px;
+        border: 1px solid var(--line);
+        border-radius: 16px;
+        background: #fff;
+      }
+      .score-row .field { margin-bottom: 0; }
+      .score-help {
+        display: grid;
+        align-content: center;
+        color: var(--muted);
+        line-height: 1.55;
+        font-size: 13px;
+      }
+      .score-value {
+        display: grid;
+        align-content: center;
+        justify-items: center;
+        border-radius: 14px;
+        background: rgba(46,157,139,.1);
+        color: #216b60;
+        font-weight: 700;
+      }
+      .score-total {
+        border: 1px solid rgba(217,137,30,.28);
+        background: linear-gradient(135deg, rgba(255,207,135,.24), rgba(46,157,139,.08));
+      }
+      .card {
+        background: var(--panel-2);
+        border-radius: 8px;
+        padding: 14px;
+        border: 1px solid rgba(29, 36, 48, 0.06);
+      }
+      .card strong { font-size: 1rem; display: block; margin-top: 2px; }
+      .metric-card strong { font-size: 1.45rem; }
+      .rail-item {
+        border-top: 1px solid var(--line);
+        padding-top: 10px;
+      }
+      .rail-item:first-child { border-top: 0; padding-top: 0; }
+      .rail-item strong { font-size: .92rem; }
+      .section-title { display:flex; justify-content:space-between; gap:10px; align-items:center; margin: 0 0 12px; }
+      .section-title h3, .section-title h4 { margin:0; }
+      details.card summary { cursor: pointer; font-weight: 700; }
+      .compact-table th, .compact-table td { font-size: 13px; padding: 7px 5px; }
+      .field { display: grid; gap: 8px; margin-bottom: 12px; }
+      .field input, .field textarea, .field select {
+        box-sizing: border-box;
+        width: 100%;
+        border-radius: 12px;
+        border: 1px solid rgba(29, 36, 48, 0.16);
+        padding: 10px 12px;
+        font: inherit;
+        background: #fff;
+      }
+      .field textarea { min-height: 96px; resize: vertical; }
+      .row-actions { display: flex; gap: 10px; flex-wrap: wrap; justify-content: flex-end; }
+      .btn { background: linear-gradient(135deg, var(--brand), #b86610); color: #fff; }
+      .ghost { background: #eef1f3; color: #29303a; }
+      .badge {
+        display: inline-flex;
+        align-items: center;
+        justify-content: center;
+        padding: 6px 10px;
+        border-radius: 999px;
+        font-size: 12px;
+        font-weight: 600;
+        background: rgba(223, 142, 34, 0.14);
+        color: #a86410;
+      }
+      .status-reviewed { background: rgba(47,139,107,.14); color: #246149; }
+      .status-needs_revision { background: rgba(189,87,64,.15); color: #924434; }
+      .status-submitted { background: rgba(223,142,34,.14); color: #a86410; }
+      .status-draft { background: rgba(113,122,138,.12); color: #5d6470; }
+      .list { display: grid; gap: 10px; padding: 0; margin: 0; list-style: none; }
+      .employee-card-grid { display: grid; grid-template-columns: repeat(4, minmax(0, 1fr)); gap: 12px; }
+      .employee-card {
+        border: 1px solid rgba(29, 36, 48, 0.1);
+        border-radius: 18px;
+        padding: 14px;
+        background: linear-gradient(145deg, #fffaf0, #ffffff);
+        box-shadow: 0 12px 28px rgba(45, 28, 10, 0.07);
+      }
+      .employee-card strong { display: block; }
+      .employee-card .score { font-size: 1.9rem; font-weight: 800; color: #b45819; margin: 8px 0; }
+      .list-item {
+        border: 1px solid rgba(29, 36, 48, 0.08);
+        border-radius: 16px;
+        background: #fff;
+        padding: 12px;
+      }
+      .list-item small { color: var(--muted); }
+      table { width: 100%; border-collapse: collapse; }
+      th, td { border-bottom: 1px solid var(--line); padding: 8px 6px; text-align: left; vertical-align: top; }
+      .table-scroll { max-width: 100%; overflow-x: auto; padding-bottom: 4px; }
+      .table-scroll table { table-layout: fixed; min-width: 0; }
+      .table-scroll th, .table-scroll td { overflow-wrap: anywhere; }
+      .table-scroll input, .table-scroll select {
+        box-sizing: border-box;
+        width: 100%;
+        min-width: 0;
+        padding: 7px 8px;
+        font-size: 14px;
+      }
+      .table-scroll .ghost {
+        width: 100%;
+        min-width: 0;
+        padding: 8px 10px;
+        white-space: normal;
+      }
+      .user-admin-layout {
+        display: grid;
+        grid-template-columns: minmax(0, 1.05fr) minmax(360px, 0.95fr);
+        gap: 16px;
+        align-items: start;
+      }
+      .user-list-shell {
+        min-width: 0;
+        overflow-x: auto;
+        padding-bottom: 6px;
+      }
+      .user-list-table {
+        min-width: 760px;
+        table-layout: fixed;
+      }
+      .user-list-table th,
+      .user-list-table td {
+        font-size: 13px;
+        overflow-wrap: anywhere;
+      }
+      .user-list-table th:nth-child(1),
+      .user-list-table td:nth-child(1) { width: 82px; }
+      .user-list-table th:nth-child(2),
+      .user-list-table td:nth-child(2) { width: 70px; }
+      .user-list-table th:nth-child(3),
+      .user-list-table td:nth-child(3) { width: 58px; }
+      .user-list-table th:nth-child(4),
+      .user-list-table td:nth-child(4) { width: 72px; }
+      .user-list-table th:nth-child(5),
+      .user-list-table td:nth-child(5) { width: 54px; }
+      .user-list-table th:nth-child(6),
+      .user-list-table td:nth-child(6) { width: 142px; }
+      .user-list-table th:nth-child(7),
+      .user-list-table td:nth-child(7) { width: 170px; }
+      .user-list-table th:nth-child(8),
+      .user-list-table td:nth-child(8) { width: 84px; }
+      .user-list-table th:nth-child(9),
+      .user-list-table td:nth-child(9) { width: 72px; }
+      .user-list-table th:nth-child(10),
+      .user-list-table td:nth-child(10) { width: 84px; }
+      .user-list-table th:nth-child(11),
+      .user-list-table td:nth-child(11) { width: 72px; }
+      .truncate-cell {
+        display: inline-block;
+        max-width: 100%;
+        overflow: hidden;
+        text-overflow: ellipsis;
+        white-space: nowrap;
+        vertical-align: top;
+      }
+      .user-editor-card {
+        min-width: 0;
+      }
+      #teacherSection .table-scroll table { font-size: 14px; }
+      #teacherSection .teacher-class-table th:nth-child(1), #teacherSection .teacher-class-table td:nth-child(1) { width: 32%; }
+      #teacherSection .teacher-class-table th:nth-child(2), #teacherSection .teacher-class-table td:nth-child(2) { width: 26%; }
+      #teacherSection .teacher-class-table th:nth-child(3), #teacherSection .teacher-class-table td:nth-child(3) { width: 18%; }
+      #teacherSection .teacher-class-table th:nth-child(4), #teacherSection .teacher-class-table td:nth-child(4) { width: 24%; }
+      #teacherSection .teacher-attendance-table th:nth-child(1), #teacherSection .teacher-attendance-table td:nth-child(1) { width: 18%; }
+      #teacherSection .teacher-attendance-table th:nth-child(2), #teacherSection .teacher-attendance-table td:nth-child(2) { width: 16%; }
+      #teacherSection .teacher-attendance-table th:nth-child(3), #teacherSection .teacher-attendance-table td:nth-child(3) { width: 14%; }
+      #teacherSection .teacher-attendance-table th:nth-child(4), #teacherSection .teacher-attendance-table td:nth-child(4) { width: 14%; }
+      #teacherSection .teacher-attendance-table th:nth-child(5), #teacherSection .teacher-attendance-table td:nth-child(5) { width: 23%; }
+      #teacherSection .teacher-attendance-table th:nth-child(6), #teacherSection .teacher-attendance-table td:nth-child(6) { width: 15%; }
+      #teacherSection .teacher-teaching-table th:nth-child(1), #teacherSection .teacher-teaching-table td:nth-child(1) { width: 18%; }
+      #teacherSection .teacher-teaching-table th:nth-child(2), #teacherSection .teacher-teaching-table td:nth-child(2) { width: 15%; }
+      #teacherSection .teacher-teaching-table th:nth-child(3), #teacherSection .teacher-teaching-table td:nth-child(3) { width: 13%; }
+      #teacherSection .teacher-teaching-table th:nth-child(4), #teacherSection .teacher-teaching-table td:nth-child(4) { width: 12%; }
+      #teacherSection .teacher-teaching-table th:nth-child(5), #teacherSection .teacher-teaching-table td:nth-child(5) { width: 11%; }
+      #teacherSection .teacher-teaching-table th:nth-child(6), #teacherSection .teacher-teaching-table td:nth-child(6) { width: 18%; }
+      #teacherSection .teacher-teaching-table th:nth-child(7), #teacherSection .teacher-teaching-table td:nth-child(7) { width: 13%; }
+      #assistantSection .table-scroll table { min-width: 760px; }
+      .login-shell {
+        min-height: 100vh;
+        display: grid;
+        place-items: center;
+        padding: 24px;
+      }
+      .login-card {
+        width: min(520px, 100%);
+        padding: 24px;
+        border-radius: 24px;
+        background: rgba(255,255,255,.95);
+        box-shadow: 0 18px 60px rgba(48, 45, 33, 0.12);
+      }
+      .login-card h1 { margin: 6px 0 8px; }
+      .message { padding: 12px 14px; border-radius: 14px; margin-top: 10px; }
+      .message.ok { background: rgba(47,139,107,.12); color: #246149; }
+      .message.err { background: rgba(189,87,64,.12); color: #924434; }
+      .login-loading {
+        display: inline-flex;
+        align-items: center;
+        gap: 10px;
+        margin-top: 12px;
+        color: var(--muted);
+      }
+      .spinner {
+        width: 18px;
+        height: 18px;
+        border-radius: 50%;
+        border: 3px solid rgba(217, 137, 30, 0.2);
+        border-top-color: var(--brand);
+        animation: spin .8s linear infinite;
+      }
+      .btn:disabled, .ghost:disabled {
+        cursor: wait;
+        opacity: .68;
+      }
+      @keyframes spin { to { transform: rotate(360deg); } }
+      .modal-backdrop {
+        position: fixed;
+        inset: 0;
+        display: grid;
+        place-items: center;
+        background: rgba(16, 34, 44, 0.62);
+        backdrop-filter: blur(4px);
+        z-index: 50;
+        padding: 24px;
+      }
+      .modal-card {
+        width: min(520px, 100%);
+        background: rgba(255,255,255,.98);
+        border-radius: 24px;
+        padding: 24px;
+        box-shadow: 0 24px 80px rgba(0,0,0,.28);
+      }
+      .modal-card.scrollable {
+        width: min(1120px, 100%);
+        max-height: calc(100vh - 48px);
+        overflow-y: auto;
+      }
+      .modal-card.scrollable #dashboardReportContent {
+        max-height: calc(100vh - 190px);
+        overflow-y: auto;
+        padding-right: 8px;
+      }
+      .modal-card h2 { margin: 0 0 8px; }
+      .modal-card .row-actions { justify-content: flex-start; }
+      .hidden { display: none !important; }
+      @media (max-width: 1024px) {
+        .app-header, .workbench, .user-admin-layout { grid-template-columns: 1fr; }
+        .context-rail { position: static; }
+        .grid-4, .grid-2, .chip-grid { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+        .user-strip { justify-content: flex-start; }
+      }
+      @media (max-width: 760px) {
+        .main, .sidebar, .app-header { padding: 16px; }
+        .topbar { flex-direction: column; }
+        .grid-4, .grid-2, .chip-grid, .metrics-grid, .paired-fields, .confirm-grid, .score-row, .employee-card-grid { grid-template-columns: 1fr; }
+        .user-list-table { min-width: 680px; }
+      }
+
+      .screenshot-preview .shell { max-width: 1360px; }
+      .screenshot-preview .panel { padding-bottom: 48px; }
+      .screenshot-preview .table-scroll { overflow: visible; }
+      .screenshot-preview .table-scroll table { min-width: 100%; }
+    </style>
+  </head>
+  <body>
+    <div id="loginView" class="login-shell">
+      <div class="login-card">
+        <div class="eyebrow">Lion Learning</div>
+        <h1>月報系統登入</h1>
+        <p class="muted">請使用帳號與密碼登入，進入英語老師與行政老師共用的月報填報系統。</p>
+        <form id="loginForm">
+          <label class="field">
+            <span>帳號</span>
+            <input id="account" autocomplete="username" placeholder="請輸入你的帳號">
+          </label>
+          <label class="field">
+            <span>密碼</span>
+            <input id="password" type="password" autocomplete="current-password" placeholder="請輸入密碼">
+          </label>
+          <button class="btn" type="submit" id="loginBtn">登入</button>
+        </form>
+        <div id="loginLoading" class="login-loading hidden">
+          <span class="spinner"></span>
+          <span>正在登入與載入月報資料，請稍候...</span>
+        </div>
+        <div id="loginMessage" class="message hidden"></div>
+      </div>
+    </div>
+
+    <div id="appView" class="shell hidden">
+      <header class="app-header">
+        <div class="brand">
+          <div class="eyebrow">Lion Learning</div>
+          <h1 id="systemName">月報填報系統</h1>
+          <p id="branchName" class="muted"></p>
+        </div>
+
+        <label class="field">
+          <span>月份</span>
+          <input id="monthPicker" type="month">
+        </label>
+
+        <div class="nav">
+          <button data-view="fill" class="active" id="navFill">月報填報</button>
+          <button data-view="dashboard" id="navDashboard">月報儀表板</button>
+          <button data-view="manage" id="navManage">月報後台</button>
+          <button data-view="partTimeSettings" id="navPartTimeSettings">兼任老師參數管理</button>
+          <button data-view="users" id="navUsers">帳號密碼管理</button>
+          <button data-view="guide" id="navGuide">系統說明</button>
+        </div>
+
+        <div class="user-strip">
+          <div>
+            <strong id="userName"></strong>
+            <div id="userRole" class="muted"></div>
+            <div id="userTitle" class="muted"></div>
+          </div>
+          <button id="logoutBtn" class="ghost" type="button">登出</button>
+        </div>
+      </header>
+
+      <main class="main">
+        <header class="topbar">
+          <div>
+            <div class="eyebrow">MVP</div>
+            <h2 id="pageTitle">月報填報</h2>
+            <div id="subtitle" class="muted"></div>
+          </div>
+          <div>
+            <span id="statusBadge" class="badge">草稿</span>
+          </div>
+        </header>
+
+        <div id="message" class="message hidden"></div>
+
+        <section id="guidePanel" class="panel hidden">
+          <div class="section-title">
+            <h3>系統說明</h3>
+            <span class="badge">Google Apps Script 雲端版</span>
+          </div>
+          <div class="grid-2">
+            <div class="card">
+              <strong>使用流程</strong>
+              <p class="muted" style="line-height:1.8;">老師每月進入「月報填報」完成資料，送出後由主管於「月報後台」查看、審核與匯出正式檔案。</p>
+            </div>
+            <div class="card">
+              <strong>填寫提醒</strong>
+              <p class="muted" style="line-height:1.8;">出勤與教學紀錄會參考上一期內容；若上一期沒有資料，系統會放入 0 次 / 0 小時範例，方便直接修改或刪除。</p>
+            </div>
+          </div>
+          <div class="card" style="margin-top:12px;">
+            <strong>功能權限矩陣</strong>
+            <div id="guidePermissionMatrix" style="margin-top: 12px;"></div>
+          </div>
+        </section>
+
+        <section id="dashboardPanel" class="panel hidden">
+          <div class="section-title">
+            <h3>月報儀表板</h3>
+            <span id="dashboardScopeBadge" class="badge"></span>
+          </div>
+          <div class="workbench">
+            <aside class="context-rail side-stack">
+              <div class="card">
+                <strong>本月狀態</strong>
+                <div id="metricGrid" class="side-stack" style="margin-top: 12px;"></div>
+              </div>
+              <div class="card">
+                <strong>功能權限矩陣</strong>
+                <div id="permissionMatrix" style="margin-top: 12px;"></div>
+              </div>
+              <div class="card manager-only">
+                <strong>分校總覽</strong>
+                <div id="referenceMetricGrid" class="side-stack" style="margin-top: 12px;"></div>
+              </div>
+            </aside>
+            <div class="content-stack">
+              <div class="grid-2 manager-only">
+                <div class="card">
+                  <strong>本月未送出名單</strong>
+                  <ul id="unsentList" class="list" style="margin-top: 12px;"></ul>
+                </div>
+                <div class="card">
+                  <strong>待追蹤名單</strong>
+                  <ul id="followList" class="list" style="margin-top: 12px;"></ul>
+                </div>
+              </div>
+              <div class="card manager-only">
+                <strong>自評分數低於 7 分員工關懷</strong>
+                <p class="muted" style="margin: 6px 0 12px;">系統會自動列出本月自評分數低於 7 分的月報，方便主管安排關懷、協助與後續追蹤。</p>
+                <ul id="lowScoreCareList" class="list"></ul>
+              </div>
+              <div class="grid-2 personal-only hidden">
+                <div class="card">
+                  <strong>我的歷次填報紀錄</strong>
+                  <ul id="personalReportList" class="list" style="margin-top: 12px;"></ul>
+                </div>
+                <div class="card">
+                  <strong>本月提醒</strong>
+                  <ul id="personalReminderList" class="list" style="margin-top: 12px;"></ul>
+                </div>
+              </div>
+              <div class="grid-2 manager-only">
+                <div class="card">
+                  <strong>週資料摘要</strong>
+                  <ul id="weeklyRecordsList" class="list" style="margin-top: 12px;"></ul>
+                </div>
+                <div class="card">
+                  <strong>老師帶班統計</strong>
+                  <ul id="teacherLoadList" class="list" style="margin-top: 12px;"></ul>
+                </div>
+              </div>
+              <div class="grid-2 manager-only">
+                <div class="card">
+                  <strong>班級快照</strong>
+                  <ul id="classSnapshotList" class="list" style="margin-top: 12px;"></ul>
+                  <details id="classSnapshotArchive" class="card" style="margin-top: 12px;">
+                    <summary>查詢較早班級快照</summary>
+                    <ul id="classSnapshotArchiveList" class="list" style="margin-top: 12px;"></ul>
+                  </details>
+                </div>
+                <div class="card">
+                  <strong>行政月報彙整</strong>
+                  <ul id="adminMonthlyList" class="list" style="margin-top: 12px;"></ul>
+                </div>
+              </div>
+            </div>
+          </div>
+        </section>
+
+        <section id="fillPanel" class="panel hidden">
+          <div class="section-title">
+            <h3 id="fillHeading">月報填寫</h3>
+            <span id="fillScopeBadge" class="badge"></span>
+          </div>
+          <div class="workbench">
+            <aside class="context-rail side-stack">
+              <div class="card">
+                <strong>分校 / 老師 / 班級參考資料</strong>
+                <div id="referenceFormGrid" class="side-stack" style="margin-top: 12px;"></div>
+                <ul id="referenceFormNotes" class="list" style="margin-top: 12px;"></ul>
+              </div>
+              <div class="card">
+                <strong>月報分數</strong>
+                <div id="summaryGrid" class="side-stack" style="margin-top: 12px;"></div>
+              </div>
+            </aside>
+            <div class="content-stack">
+            <div id="teacherSection" class="hidden">
+              <h4 id="teacherReportTitle">英文老師月報填報 / English Teacher Monthly Report</h4>
+              <div id="classTable"></div>
+              <div class="row-actions"><button class="ghost" type="button" id="addClassBtn">新增帶班班級 / Add Class</button></div>
+              <h4>出勤紀錄 / Attendance Records</h4>
+              <div id="attendanceTable"></div>
+              <div class="row-actions"><button class="ghost" type="button" id="addAttendanceBtn">新增出勤 / Add Attendance</button></div>
+              <h4>教學紀錄 / Teaching Records</h4>
+              <div id="teachingTable"></div>
+              <div class="row-actions"><button class="ghost" type="button" id="addTeachingBtn">新增教學紀錄 / Add Teaching Record</button></div>
+              <h4>加班申請紀錄 / Overtime Application Records</h4>
+              <div id="teacherOvertimeTable"></div>
+              <div class="row-actions"><button class="ghost" type="button" id="addTeacherOvertimeBtn">新增加班 / Add Overtime</button></div>
+              <h4>績效與反思 / Performance and Reflection</h4>
+              <div class="form-grid" id="teacherMetrics"></div>
+              <div class="form-grid" id="teacherReflection"></div>
+              <div class="form-grid">
+                <label class="field"><span>本月客訴或異常事件 / Complaints or Incidents This Month</span><textarea id="complaints"></textarea></label>
+                <label class="field"><span>客訴處理方式 / How It Was Handled</span><textarea id="complaintHandling"></textarea></label>
+              </div>
+            </div>
+
+            <div id="adminSection" class="hidden">
+              <h4>行政月報告暨月考核</h4>
+              <div class="card">
+                <strong>填寫說明</strong>
+                <p class="muted" style="line-height:1.8; margin-bottom:0;">請依本月行政月報表填寫進班人數、請假紀錄、櫃詢 / Call 班資料、表格繳交狀況、分校掌握、自評與執行力。系統會依附件計分方式自動彙整績效分數。</p>
+              </div>
+              <h4>請假紀錄</h4>
+              <div id="adminAttendanceTable"></div>
+              <div class="row-actions"><button class="ghost" type="button" id="addAdminAttendanceBtn">新增出勤</button></div>
+              <h4>加班申請紀錄</h4>
+              <div id="adminOvertimeTable"></div>
+              <div class="row-actions"><button class="ghost" type="button" id="addAdminOvertimeBtn">新增加班</button></div>
+              <h4>績效評比</h4>
+              <div class="form-grid" id="adminMetrics"></div>
+              <h4>基本業務 / 表格繳交狀況</h4>
+              <div class="form-grid" id="adminChecklist"></div>
+              <h4>自評與回饋</h4>
+              <div class="form-grid" id="adminReflection"></div>
+            </div>
+
+            <div id="partTimeSection" class="hidden">
+              <h4>兼任老師教學專案執行成果表</h4>
+              <div class="card">
+                <strong>填寫說明</strong>
+                <p class="muted" style="line-height:1.8; margin-bottom:0;">請依每月實際執行成果填寫授課與教務執行紀錄。系統會自動加總授課時數、非教學教務時數、應支領報酬與未履行合約時的溢領價差。</p>
+              </div>
+              <h4>薪資與合約設定</h4>
+              <div class="metrics-grid" id="partTimeContract"></div>
+              <h4>執行成果明細</h4>
+              <div id="partTimeRecordsTable"></div>
+              <div class="row-actions"><button class="ghost" type="button" id="addPartTimeRecordBtn">新增執行紀錄</button></div>
+              <h4>承攬人聲明與自評</h4>
+              <div class="form-grid" id="partTimeReflection"></div>
+              <div class="row-actions" style="justify-content:flex-start; margin-top: 18px;">
+                <button class="ghost" type="button" id="partTimeEditBtn">修改填報結果</button>
+                <button class="ghost" type="button" id="partTimePdfBtn">轉成PDF檔下載</button>
+                <button class="btn" type="button" id="partTimeSaveBtn">確認填報儲存</button>
+              </div>
+            </div>
+
+            <div id="assistantSection" class="hidden">
+              <h4>工讀 / 助教月報時數表</h4>
+              <div class="card">
+                <strong>填寫說明</strong>
+                <p class="muted" style="line-height:1.8; margin-bottom:0;">請依附件「工讀生時數表」格式填寫本月工作日期、星期、執行內容、起訖時間與上班時數。系統會自動加總本月總時數，供主管查詢與審核。</p>
+              </div>
+              <h4>本月時數明細</h4>
+              <div id="assistantTimesheetTable"></div>
+              <div class="row-actions"><button class="ghost" type="button" id="addAssistantTimesheetBtn">新增時數紀錄</button></div>
+              <h4>本月自評與回饋</h4>
+              <div class="metrics-grid" id="assistantSummary"></div>
+              <div class="form-grid" id="assistantReflection"></div>
+            </div>
+
+            <div id="standardReportActions" class="row-actions" style="margin-top: 18px;">
+              <button class="ghost" type="button" id="saveDraftBtn">儲存草稿</button>
+              <button class="btn" type="button" id="submitBtn">正式送出</button>
+            </div>
+            </div>
+          </div>
+          </section>
+
+          <section id="managePanel" class="panel hidden">
+            <h3>月報後台查詢</h3>
+            <div class="grid-2">
+              <div class="card">
+                <strong>月報清單</strong>
+                <div class="grid-2" style="margin-top: 12px;">
+                  <label class="field">
+                    <span>分校篩選</span>
+                    <select id="manageBranchFilter"></select>
+                  </label>
+                  <label class="field">
+                    <span>身份篩選</span>
+                    <select id="manageRoleFilter">
+                      <option value="">全部身份</option>
+                      <option value="teacher">英語老師</option>
+                      <option value="partTime">兼任老師</option>
+                      <option value="tutor">課輔老師</option>
+                      <option value="assistant">工讀助教</option>
+                      <option value="admin">行政老師</option>
+                    </select>
+                  </label>
+                </div>
+                <div id="reportList" class="report-grid" style="margin-top: 12px;"></div>
+              </div>
+              <div class="card">
+                <strong>月報詳情</strong>
+                <div id="detailPanel" style="margin-top: 12px;" class="muted">請先選擇一份月報。</div>
+              </div>
+            </div>
+            <div style="height: 14px;"></div>
+          </section>
+
+          <section id="partTimeSettingsPanel" class="panel hidden">
+            <div class="card">
+              <strong>兼任老師填報參數修改管理</strong>
+              <p class="muted" style="margin: 6px 0 14px;">主管可在此統一調整兼任老師月報填報頁會帶入的授課時薪、非教學教務時薪與兼任合約到期日。</p>
+              <div id="partTimeSettingsList"></div>
+              <div class="row-actions" style="justify-content:flex-start; margin-top: 14px;">
+                <button class="btn" id="savePartTimeSettingsBtn" type="button">儲存兼任老師參數</button>
+              </div>
+              <div id="partTimeSettingsLoading" class="login-loading hidden" style="justify-content:flex-start;">
+                <span class="spinner"></span>
+                <span>正在寫入兼任老師參數，請稍候...</span>
+              </div>
+              <div id="partTimeSettingsMessage" class="message hidden"></div>
+            </div>
+          </section>
+
+          <section id="usersPanel" class="panel hidden">
+            <div class="card">
+              <strong>帳號清單與密碼管理</strong>
+              <p class="muted" style="margin: 6px 0 14px;">這裡會列出目前 Users 資料表的帳號，主管可新增、修改、刪除使用者，也可以直接設定新密碼。</p>
+              <div class="user-admin-layout">
+                <div>
+                  <div id="userListPanel"></div>
+                </div>
+                <div class="user-editor-card">
+                  <div class="field">
+                    <span>選擇帳號</span>
+                    <select id="userEditorSelect"></select>
+                  </div>
+                  <div class="field">
+                    <span>姓名</span>
+                    <input id="userEditName" placeholder="例如 Claire">
+                  </div>
+                  <div class="field">
+                    <span>帳號</span>
+                    <input id="userEditAccount" placeholder="例如 claire">
+                  </div>
+                  <div class="field">
+                    <span>角色</span>
+                    <select id="userEditRole">
+                      <option value="teacher">英語老師</option>
+                      <option value="tutor">課輔老師</option>
+                      <option value="assistant">工讀助教</option>
+                      <option value="admin">行政老師</option>
+                      <option value="manager">主管</option>
+                    </select>
+                  </div>
+                  <div class="grid-2">
+                    <label class="field"><span>人員代碼</span><input id="userEditStaffCode" placeholder="P568-T29"></label>
+                    <label class="field"><span>職務</span><input id="userEditDuty" placeholder="外師 / 老師 / 行政"></label>
+                  </div>
+                  <div class="grid-2">
+                    <label class="field"><span>授課時數時薪</span><input id="userEditTeachingRate" type="number" min="0" step="1" placeholder="兼任老師預設 750"></label>
+                    <label class="field"><span>非教學教務時薪</span><input id="userEditAdminRate" type="number" min="0" step="1" placeholder="兼任老師預設 350"></label>
+                  </div>
+                  <div class="field">
+                    <span>兼任合約到期日</span>
+                    <input id="userEditContractEndDate" type="date" placeholder="2026-04-30">
+                  </div>
+                  <div class="field">
+                    <span>分校</span>
+                    <input id="userEditBranch" placeholder="樂獅英語-新竹二重分校">
+                  </div>
+                  <div class="field">
+                    <span>Email 通知信箱</span>
+                    <input id="userEditEmail" type="email" placeholder="主管簽核通知收件信箱">
+                  </div>
+                  <div class="field">
+                    <span>LINE Target ID</span>
+                    <input id="userEditLineTargetId" placeholder="LINE User ID / Group ID / Room ID">
+                  </div>
+                  <div class="grid-2">
+                    <label class="field" style="display:flex; gap:10px; align-items:center;">
+                      <input id="userEditNotifyByEmail" type="checkbox" checked>
+                      <span>接收 Email 通知</span>
+                    </label>
+                    <label class="field" style="display:flex; gap:10px; align-items:center;">
+                      <input id="userEditNotifyByLine" type="checkbox">
+                      <span>接收 LINE 通知</span>
+                    </label>
+                  </div>
+                  <div class="grid-2">
+                    <label class="field" style="display:flex; gap:10px; align-items:center;">
+                      <input id="userEditNotificationReceiver" type="checkbox">
+                      <span>主管簽核通知接收者</span>
+                    </label>
+                  </div>
+                  <div class="field">
+                    <span>新密碼</span>
+                    <input id="userEditPassword" type="password" placeholder="新增必填；修改時留空代表不變更">
+                    <small class="muted">主管可手動輸入新密碼後重設，或由系統產生臨時密碼。</small>
+                  </div>
+                  <div class="field">
+                    <label style="display:flex; gap:10px; align-items:center;">
+                      <input id="userEditForceChange" type="checkbox" checked>
+                      <span>下次登入強制改密碼</span>
+                    </label>
+                  </div>
+                  <div class="row-actions" style="justify-content:flex-start;">
+                    <button class="ghost" id="resetPasswordBtn" type="button">重設為上方新密碼</button>
+                    <button class="ghost" id="generateTempPasswordBtn" type="button">產生臨時密碼並重設</button>
+                  </div>
+                  <div id="tempPasswordNotice" class="message hidden"></div>
+                  <div class="row-actions" style="justify-content:flex-start;">
+                    <button class="ghost" id="newUserBtn" type="button">新增使用者</button>
+                    <button class="btn" id="saveUserBtn" type="button">儲存使用者</button>
+                    <button class="ghost" id="deleteUserBtn" type="button">刪除使用者與月報</button>
+                  </div>
+                  <div id="userAdminLoading" class="login-loading hidden" style="justify-content:flex-start; margin-top: 12px;">
+                    <span class="spinner"></span>
+                    <span id="userAdminLoadingText">正在寫入帳號資料，請稍候...</span>
+                  </div>
+                  <div id="userAdminMessage" class="message hidden"></div>
+                </div>
+              </div>
+              <div id="notificationLogsPanel" style="margin-top:18px;"></div>
+            </div>
+          </section>
+      </main>
+    </div>
+
+    <div id="submitConfirmModal" class="modal-backdrop hidden">
+      <div class="modal-card">
+        <div class="eyebrow">送出前確認</div>
+        <h2>請確認本次月報填報內容</h2>
+        <p class="muted">送出後主管即可在後台查看與審核。請先確認重點資料是否正確。</p>
+        <div id="submitConfirmContent"></div>
+        <div class="row-actions" style="margin-top: 16px;">
+          <button class="ghost" id="continueEditBtn" type="button">繼續修改月報資料</button>
+          <button class="ghost" id="confirmPdfBtn" type="button">轉成PDF檔</button>
+          <button class="btn" id="confirmSubmitBtn" type="button">確認後送出</button>
+        </div>
+        <div id="submitConfirmMessage" class="message hidden"></div>
+      </div>
+    </div>
+
+    <div id="reviewConfirmModal" class="modal-backdrop hidden">
+      <div class="modal-card">
+        <div class="eyebrow">主管審核確認</div>
+        <h2>請確認審核結果與意見</h2>
+        <p class="muted">送出後會寫入主管審核紀錄，老師可在月報中看到本次審核狀態與意見。</p>
+        <div id="reviewConfirmContent"></div>
+        <div class="row-actions" style="margin-top: 16px;">
+          <button class="ghost" id="editReviewNoteBtn" type="button">修改審核意見</button>
+          <button class="btn" id="confirmReviewBtn" type="button">確認送出審核</button>
+        </div>
+        <div id="reviewConfirmMessage" class="message hidden"></div>
+      </div>
+    </div>
+
+    <div id="dashboardReportModal" class="modal-backdrop hidden">
+      <div class="modal-card scrollable">
+        <div class="eyebrow">月報儀表板查詢</div>
+        <h2 id="dashboardReportTitle">月報內容</h2>
+        <div id="dashboardReportContent"></div>
+        <div class="row-actions" style="margin-top: 16px;">
+          <button class="ghost" id="closeDashboardReportBtn" type="button">關閉</button>
+          <button class="btn" id="dashboardReviewJumpBtn" type="button">到後台審核</button>
+        </div>
+      </div>
+    </div>
+
+    <div id="passwordModal" class="modal-backdrop hidden">
+      <div class="modal-card">
+        <div class="eyebrow">首次登入設定</div>
+        <h2>請先修改密碼</h2>
+        <p class="muted">這是你的第一次登入，為了安全，請先設定新密碼後再進入月報系統。</p>
+        <form id="passwordForm">
+          <label class="field">
+            <span>目前密碼</span>
+            <input id="currentPassword" type="password" autocomplete="current-password" placeholder="請輸入目前密碼">
+          </label>
+          <label class="field">
+            <span>新密碼</span>
+            <input id="newPassword" type="password" autocomplete="new-password" placeholder="至少 6 碼">
+          </label>
+          <label class="field">
+            <span>確認新密碼</span>
+            <input id="confirmPassword" type="password" autocomplete="new-password" placeholder="請再輸入一次新密碼">
+          </label>
+          <div class="row-actions">
+            <button class="btn" id="passwordSubmitBtn" type="submit">更新密碼並登入</button>
+          </div>
+        </form>
+        <div id="passwordLoading" class="login-loading hidden">
+          <span class="spinner"></span>
+          <span>正在更新密碼並載入系統，請稍候...</span>
+        </div>
+        <div id="passwordMessage" class="message hidden"></div>
+      </div>
+    </div>
+
+        <script>
+      const tokenKey = 'monthly-report-auth-token';
+      const state = {
+        user: null,
+        bootstrap: null,
+        report: null,
+        reports: [],
+        detail: null,
+        detailLoading: false,
+        detailError: '',
+        pendingReview: null,
+        view: 'fill',
+        month: new Date().toISOString().slice(0, 7),
+        mustChangePassword: false,
+        manageBranchFilter: '',
+        manageRoleFilter: '',
+      };
+
+      const $ = (id) => document.getElementById(id);
+      const call = (fn, ...args) => new Promise((resolve, reject) => {
+        google.script.run
+          .withSuccessHandler((result) => {
+            if (typeof result === 'string') {
+              try {
+                resolve(JSON.parse(result));
+                return;
+              } catch (error) {
+                resolve(result);
+                return;
+              }
+            }
+            resolve(result);
+          })
+          .withFailureHandler((err) => reject(new Error(err && err.message ? err.message : err)))
+          [fn](...args);
+      });
+
+      const labels = {
+        role: { teacher: '英語老師', tutor: '課輔老師', assistant: '工讀助教', admin: '行政老師', manager: '主管' },
+        status: {
+          draft: '草稿',
+          submitted: '已送出',
+          reviewed: '已審核',
+          needs_revision: '待修正',
+        },
+        attendance: {
+          sick: '病假',
+          personal: '事假',
+          annual: '特休',
+          late: '遲到',
+        },
+        overtime: {
+          weekday: '平常日加班',
+          holiday: '休假日加班',
+        },
+        teacherWork: {
+          substitute_for_other: '幫人代課',
+          covered_by_other: '被人代課',
+          student_makeup: '幫學生補課',
+          activity_hosted: '活動舉辦',
+          training_attended: '教育訓練',
+        },
+      };
+
+      function escapeHtml(value) {
+        return String(value ?? '').replace(/[&<>"']/g, (m) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[m]));
+      }
+
+      function setMessage(text, kind = 'ok') {
+        const el = $('message');
+        if (!text) {
+          el.className = 'message hidden';
+          el.textContent = '';
+          return;
+        }
+        el.className = `message ${kind}`;
+        el.textContent = text;
+      }
+
+      function setLoginMessage(text, kind = 'err') {
+        const el = $('loginMessage');
+        if (!text) {
+          el.className = 'message hidden';
+          el.textContent = '';
+          return;
+        }
+        el.className = `message ${kind}`;
+        el.textContent = text;
+      }
+
+      function showLogin() {
+        $('loginView').classList.remove('hidden');
+        $('appView').classList.add('hidden');
+        $('passwordModal').classList.add('hidden');
+        setPasswordMessage('');
+        $('currentPassword').value = '';
+        $('newPassword').value = '';
+        $('confirmPassword').value = '';
+      }
+
+      function showApp() {
+        $('loginView').classList.add('hidden');
+        $('appView').classList.remove('hidden');
+      }
+
+      function showPasswordModal() {
+        $('passwordModal').classList.remove('hidden');
+        document.body.style.overflow = 'hidden';
+      }
+
+      function hidePasswordModal() {
+        $('passwordModal').classList.add('hidden');
+        document.body.style.overflow = '';
+      }
+
+      function setPasswordMessage(text, kind = 'err') {
+        const el = $('passwordMessage');
+        if (!text) {
+          el.className = 'message hidden';
+          el.textContent = '';
+          return;
+        }
+        el.className = `message ${kind}`;
+        el.textContent = text;
+      }
+
+      function setResetMessage(text, kind = 'ok') {
+        const el = $('userAdminMessage');
+        if (!text) {
+          el.className = 'message hidden';
+          el.textContent = '';
+          return;
+        }
+        el.className = `message ${kind}`;
+        el.textContent = text;
+      }
+
+      function setUserAdminLoading(isLoading, text = '正在寫入帳號資料，請稍候...') {
+        $('userAdminLoading').classList.toggle('hidden', !isLoading);
+        $('userAdminLoadingText').textContent = text;
+        ['newUserBtn', 'saveUserBtn', 'deleteUserBtn', 'resetPasswordBtn', 'generateTempPasswordBtn', 'userEditorSelect', 'userEditName', 'userEditAccount', 'userEditRole', 'userEditStaffCode', 'userEditDuty', 'userEditTeachingRate', 'userEditAdminRate', 'userEditContractEndDate', 'userEditBranch', 'userEditEmail', 'userEditLineTargetId', 'userEditNotifyByEmail', 'userEditNotifyByLine', 'userEditNotificationReceiver', 'userEditPassword', 'userEditForceChange']
+          .forEach((id) => {
+            const el = $(id);
+            if (el) el.disabled = isLoading;
+          });
+      }
+
+      function setTempPasswordNotice(text, kind = 'ok') {
+        const el = $('tempPasswordNotice');
+        if (!el) return;
+        if (!text) {
+          el.className = 'message hidden';
+          el.innerHTML = '';
+          return;
+        }
+        el.className = `message ${kind}`;
+        el.innerHTML = text;
+      }
+
+      function generateTemporaryPassword(length = 10) {
+        const alphabet = 'ABCDEFGHJKLMNPQRSTUVWXYZabcdefghijkmnopqrstuvwxyz23456789';
+        const values = new Uint32Array(length);
+        if (window.crypto && window.crypto.getRandomValues) {
+          window.crypto.getRandomValues(values);
+        } else {
+          for (let index = 0; index < length; index += 1) {
+            values[index] = Math.floor(Math.random() * alphabet.length);
+          }
+        }
+        return Array.from(values).map((value) => alphabet[value % alphabet.length]).join('');
+      }
+
+      function setSubmitConfirmMessage(text, kind = 'ok') {
+        const el = $('submitConfirmMessage');
+        if (!text) {
+          el.className = 'message hidden';
+          el.textContent = '';
+          return;
+        }
+        el.className = `message ${kind}`;
+        el.textContent = text;
+      }
+
+      function setReviewConfirmMessage(text, kind = 'ok') {
+        const el = $('reviewConfirmMessage');
+        if (!text) {
+          el.className = 'message hidden';
+          el.textContent = '';
+          return;
+        }
+        el.className = `message ${kind}`;
+        el.textContent = text;
+      }
+
+      function setPartTimeSettingsMessage(text, kind = 'ok') {
+        const el = $('partTimeSettingsMessage');
+        if (!text) {
+          el.className = 'message hidden';
+          el.textContent = '';
+          return;
+        }
+        el.className = `message ${kind}`;
+        el.textContent = text;
+      }
+
+      function setPartTimeSettingsLoading(isLoading) {
+        $('partTimeSettingsLoading').classList.toggle('hidden', !isLoading);
+        $('savePartTimeSettingsBtn').disabled = isLoading;
+        document.querySelectorAll('[data-parttime-user]').forEach((el) => {
+          el.disabled = isLoading;
+        });
+      }
+
+      function setLoginLoading(isLoading) {
+        $('loginLoading').classList.toggle('hidden', !isLoading);
+        $('loginBtn').disabled = isLoading;
+        $('account').disabled = isLoading;
+        $('password').disabled = isLoading;
+        $('loginBtn').textContent = isLoading ? '登入中...' : '登入';
+      }
+
+      function setPasswordLoading(isLoading) {
+        $('passwordLoading').classList.toggle('hidden', !isLoading);
+        ['currentPassword', 'newPassword', 'confirmPassword', 'passwordSubmitBtn'].forEach((id) => {
+          const el = $(id);
+          if (el) el.disabled = isLoading;
+        });
+        $('passwordSubmitBtn').textContent = isLoading ? '更新中...' : '更新密碼並登入';
+      }
+
+      function currentUser() {
+        return state.user;
+      }
+
+      function isManager() {
+        return currentUser() && currentUser().role === 'manager';
+      }
+
+      function isTeacher() {
+        return currentUser() && ['teacher', 'tutor'].includes(currentUser().role);
+      }
+
+      function isAssistantUser(user = currentUser()) {
+        return user && user.role === 'assistant';
+      }
+
+      function isAdmin() {
+        return currentUser() && currentUser().role === 'admin';
+      }
+
+      function isPartTimeTeacher(user = currentUser()) {
+        const text = `${user && (user.duty || user.title || '')}`.toLowerCase();
+        return user && !isAssistantUser(user) && ['teacher', 'tutor'].includes(user.role) && (Boolean(user.isPartTimeTeacher) || text.includes('兼任') || text.includes('part'));
+      }
+
+      function isPartTimeReport(report) {
+        return report && ['teacher', 'tutor', 'assistant'].includes(report.role) && Boolean(report.data && report.data.partTimeContract);
+      }
+
+      function isAssistantReport(report) {
+        return report && report.role === 'assistant' && Boolean(report.data && report.data.assistantTimesheet);
+      }
+
+      function renderNav() {
+        document.querySelectorAll('.manager-only').forEach((el) => el.classList.toggle('hidden', !isManager()));
+        document.querySelectorAll('.personal-only').forEach((el) => el.classList.toggle('hidden', isManager()));
+        $('navFill').classList.toggle('hidden', isManager());
+        $('navManage').classList.toggle('hidden', !isManager());
+        $('navPartTimeSettings').classList.toggle('hidden', !isManager());
+        $('navUsers').classList.toggle('hidden', !isManager());
+        $('navFill').classList.toggle('active', state.view === 'fill');
+        $('navDashboard').classList.toggle('active', state.view === 'dashboard');
+        $('navManage').classList.toggle('active', state.view === 'manage');
+        $('navPartTimeSettings').classList.toggle('active', state.view === 'partTimeSettings');
+        $('navUsers').classList.toggle('active', state.view === 'users');
+        $('navGuide').classList.toggle('active', state.view === 'guide');
+        $('fillPanel').classList.toggle('hidden', state.view !== 'fill' || isManager());
+        $('dashboardPanel').classList.toggle('hidden', state.view !== 'dashboard');
+        $('managePanel').classList.toggle('hidden', state.view !== 'manage');
+        $('partTimeSettingsPanel').classList.toggle('hidden', state.view !== 'partTimeSettings');
+        $('usersPanel').classList.toggle('hidden', state.view !== 'users');
+        $('guidePanel').classList.toggle('hidden', state.view !== 'guide');
+      }
+
+      function renderHeader() {
+        const metadata = state.bootstrap && state.bootstrap.metadata ? state.bootstrap.metadata : {};
+        $('systemName').textContent = metadata.systemName || '月報填報系統';
+        $('branchName').textContent = metadata.branchName || '';
+        $('userName').textContent = currentUser().name;
+        $('userRole').textContent = labels.role[currentUser().role] || currentUser().role;
+        $('userTitle').textContent = currentUser().duty || currentUser().title || '';
+        $('monthPicker').value = state.month;
+        $('pageTitle').textContent = state.view === 'dashboard'
+          ? '月報儀表板'
+          : state.view === 'manage'
+            ? '月報後台查詢'
+            : state.view === 'partTimeSettings'
+              ? '兼任老師參數管理'
+            : state.view === 'users'
+              ? '帳號密碼管理'
+              : state.view === 'guide'
+                ? '系統說明'
+                : '月報填報';
+        $('subtitle').textContent = `目前登入：${currentUser().name}｜${labels.role[currentUser().role] || currentUser().role}`;
+        $('statusBadge').textContent = labels.status[state.report ? state.report.status : 'draft'] || '草稿';
+      }
+
+      function renderMetricCards() {
+        if (!state.bootstrap || !state.bootstrap.dashboard) {
+          $('metricGrid').innerHTML = '<div class="rail-item">正在載入月報摘要...</div>';
+          return;
+        }
+        const metrics = state.bootstrap.dashboard.metrics;
+        const cards = isManager()
+          ? [
+            ['可填報人數', metrics.totalUsers],
+            ['本月月報數', metrics.reportCount],
+            ['已送出', metrics.submittedCount],
+            ['待處理', metrics.pendingCount],
+          ]
+          : [
+            ['歷次填報', metrics.reportCount],
+            ['已送出', metrics.submittedCount],
+            ['已審核', metrics.reviewedCount],
+            ['平均分數', metrics.averageScore],
+          ];
+        $('dashboardScopeBadge').textContent = isManager() ? '分校管理視圖' : '個人填報視圖';
+        $('metricGrid').innerHTML = cards.map(([title, value]) => `
+          <div class="rail-item metric-card">
+            <span class="muted">${title}</span>
+            <strong>${value}</strong>
+          </div>
+        `).join('');
+      }
+
+      function renderLoadingState(text = '正在載入月報資料，請稍候...') {
+        setMessage(text);
+        $('metricGrid').innerHTML = '<div class="rail-item">正在載入月報摘要...</div>';
+        $('reportList').innerHTML = '<div class="list-item">正在載入月報清單...</div>';
+        $('detailPanel').innerHTML = '正在載入月報詳情...';
+        $('referenceMetricGrid').innerHTML = '<div class="rail-item">參考資料背景載入中...</div>';
+        $('weeklyRecordsList').innerHTML = '<li class="list-item">參考資料背景載入中...</li>';
+        $('teacherLoadList').innerHTML = '<li class="list-item">參考資料背景載入中...</li>';
+        $('classSnapshotList').innerHTML = '<li class="list-item">參考資料背景載入中...</li>';
+        $('classSnapshotArchiveList').innerHTML = '<li class="list-item">參考資料背景載入中...</li>';
+        $('adminMonthlyList').innerHTML = '<li class="list-item">參考資料背景載入中...</li>';
+      }
+
+      function renderPermissionMatrix() {
+        const matrix = state.bootstrap.permissionMatrix || [];
+        $('permissionMatrix').innerHTML = matrix.map((item) => `
+          <div class="rail-item">
+            <strong>${escapeHtml(item.label)}</strong>
+            <small class="muted">${escapeHtml(item.scope)}</small>
+            <div style="margin-top:6px; line-height:1.55;">${(item.permissions || []).map((permission) => `・${escapeHtml(permission)}`).join('<br>')}</div>
+          </div>
+        `).join('');
+        $('guidePermissionMatrix').innerHTML = matrix.map((item) => `
+          <div class="rail-item">
+            <strong>${escapeHtml(item.label)}</strong>
+            <small class="muted">${escapeHtml(item.scope)}</small>
+            <div style="margin-top:6px; line-height:1.55;">${(item.permissions || []).map((permission) => `・${escapeHtml(permission)}`).join('<br>')}</div>
+          </div>
+        `).join('');
+      }
+
+      function renderPersonalDashboard() {
+        const reports = state.bootstrap.dashboard.personalReports || state.bootstrap.recentReports || [];
+        const reminders = state.bootstrap.dashboard.unsentList || [];
+        $('personalReportList').innerHTML = reports.map((report) => `
+          <li class="list-item">
+            <strong>${escapeHtml(report.month || '')}</strong>
+            <small>${labels.status[report.status] || report.status}｜總分 ${report.scores ? report.scores.overall : 0}</small>
+            <div>更新時間 ${escapeHtml(report.updatedAt || '')}</div>
+            <div class="row-actions" style="justify-content:flex-start; margin-top: 8px;">
+              <button class="ghost" data-personal-open-report="${report.id}" type="button">查看月報</button>
+            </div>
+          </li>
+        `).join('') || '<li class="list-item">目前尚無歷次填報紀錄。</li>';
+        document.querySelectorAll('[data-personal-open-report]').forEach((btn) => {
+          btn.onclick = async () => {
+            const report = await call('getReport', localStorage.getItem(tokenKey), btn.getAttribute('data-personal-open-report'));
+            showDashboardReportModal(report);
+          };
+        });
+        $('personalReminderList').innerHTML = reminders.map((item) => `
+          <li class="list-item">
+            <strong>${labels.status[item.status] || item.status}</strong>
+            <div>${escapeHtml(item.reason || '')}</div>
+          </li>
+        `).join('') || '<li class="list-item">目前沒有待處理提醒。</li>';
+      }
+
+      function renderDashboardLists() {
+        renderPermissionMatrix();
+        if (!isManager()) {
+          renderPersonalDashboard();
+          renderReferenceDashboard();
+          return;
+        }
+        const reasonText = {
+          draft: '本月尚未送出月報。',
+          submitted: '已送出，等待主管審核。',
+          needs_revision: '月報已退回修正，請盡快補正後再次送出。',
+          reviewed: '已完成審核。',
+        };
+        $('unsentList').innerHTML = state.bootstrap.dashboard.unsentList.map((item) => `
+          <li class="list-item">
+            <strong>${escapeHtml(item.name)}</strong>
+            <small>${labels.role[item.role] || item.role}｜${labels.status[item.status] || item.status}｜分數 ${item.score}</small>
+            <div>${escapeHtml(reasonText[item.status] || item.reason || '')}</div>
+          </li>
+        `).join('') || '<li class="list-item">本月沒有未送出的月報。</li>';
+
+        $('followList').innerHTML = state.bootstrap.dashboard.followUps.map((item) => `
+          <li class="list-item">
+            <strong>${escapeHtml(item.name)}</strong>
+            <small>${labels.role[item.role] || item.role}｜${labels.status[item.status] || item.status}｜分數 ${item.score}</small>
+            <div>${escapeHtml(reasonText[item.status] || item.reason || '')}</div>
+          </li>
+        `).join('') || '<li class="list-item">目前沒有需要追蹤的項目。</li>';
+
+        const lowScoreReports = (state.reports || [])
+          .filter((report) => report.scores && Number(report.scores.selfEvaluation || 0) < 7)
+          .sort((left, right) => Number(left.scores.selfEvaluation || 0) - Number(right.scores.selfEvaluation || 0));
+        $('lowScoreCareList').className = 'employee-card-grid';
+        $('lowScoreCareList').innerHTML = lowScoreReports.map((report) => `
+          <li class="employee-card">
+            <strong>${escapeHtml(report.userName || '')}</strong>
+            <small>${isPartTimeReport(report) ? '兼任老師' : (labels.role[report.role] || report.role)}｜${labels.status[report.status] || report.status}</small>
+            <div class="score">${report.scores.selfEvaluation}</div>
+            <div>建議安排一對一關懷，確認本月困難、支援需求與下月改善重點。</div>
+            <div class="row-actions" style="justify-content:flex-start; margin-top: 8px;">
+              <button class="ghost" data-dashboard-open-report="${report.id}" type="button">查看月報</button>
+            </div>
+          </li>
+        `).join('') || '<li class="list-item">本月沒有自評分數低於 7 分的月報。</li>';
+        document.querySelectorAll('[data-dashboard-open-report]').forEach((btn) => {
+          btn.onclick = async () => {
+            const report = await call('getReport', localStorage.getItem(tokenKey), btn.getAttribute('data-dashboard-open-report'));
+            showDashboardReportModal(report);
+          };
+        });
+
+        renderReferenceDashboard();
+      }
+
+      function renderReferenceDashboard() {
+        const reference = state.bootstrap.referenceDashboard;
+        if (!reference) {
+          $('referenceMetricGrid').innerHTML = '<div class="rail-item">目前沒有可用的儀表板參考資料。</div>';
+          $('weeklyRecordsList').innerHTML = '<li class="list-item">目前沒有週資料。</li>';
+          $('teacherLoadList').innerHTML = '<li class="list-item">目前沒有老師帶班統計。</li>';
+          $('classSnapshotList').innerHTML = '<li class="list-item">目前沒有班級快照。</li>';
+          $('classSnapshotArchiveList').innerHTML = '<li class="list-item">目前沒有較早班級快照。</li>';
+          $('adminMonthlyList').innerHTML = '<li class="list-item">目前沒有行政月報資料。</li>';
+          return;
+        }
+
+        const totals = reference.weeklyRecordTotals || {};
+        $('referenceMetricGrid').innerHTML = [
+          ['累計起始人數', totals.baseTotal ?? 0],
+          ['累計期末人數', totals.endingTotal ?? 0],
+          ['累計淨增減', totals.netChange ?? 0],
+          ['累計流失', totals.lostCount ?? 0],
+        ].map(([title, value]) => `<div class="rail-item metric-card"><span class="muted">${title}</span><strong>${value}</strong></div>`).join('');
+
+        $('weeklyRecordsList').innerHTML = (reference.weeklyRecords || []).slice(0, 4).map((row) => `
+          <li class="list-item">
+            <strong>${escapeHtml(row.id || '')}</strong>
+            <small>${escapeHtml(row.startDate || '')} ~ ${escapeHtml(row.endDate || '')}</small>
+            <div>起始 ${row.baseTotal ?? row.base} ｜ 期末 ${row.endingTotal ?? ''} ｜ 淨增減 ${row.netChange ?? ''}</div>
+            <div>洽詢 ${row.inquiryCount ?? ''} ｜ 體驗 ${row.trialT1 ?? ''}/${row.trialT2 ?? ''} ｜ 外撥 ${row.callOut ?? ''}</div>
+            <div>${escapeHtml(row.peopleNote || '')}</div>
+          </li>
+        `).join('') || '<li class="list-item">目前沒有週資料。</li>';
+
+        $('teacherLoadList').innerHTML = (reference.teacherLoads || []).map((row) => `
+          <li class="list-item">
+            <strong>${escapeHtml(row.teacher || '')}</strong>
+            <small>${row.classCount ?? 0} 個班級 ｜ ${row.studentCount ?? 0} 位學生</small>
+            <div>平均班級人數 ${row.avgClassSize ?? 0}</div>
+          </li>
+        `).join('') || '<li class="list-item">目前沒有老師帶班統計。</li>';
+
+        const classSnapshots = reference.weeklyClasses || [];
+        $('classSnapshotList').innerHTML = classSnapshots.slice(0, 2).map((item) => `
+          <li class="list-item">
+            <strong>${escapeHtml(item.recordId || '')}</strong>
+            <small>${escapeHtml(item.startDate || '')} ~ ${escapeHtml(item.endDate || '')} ｜ ${item.classCount ?? 0} 個班級</small>
+            <div>起始 ${item.totalBase ?? 0} ｜ 新增 ${item.totalAdd ?? 0} ｜ 流失 ${item.totalLost ?? 0}</div>
+            <div>${(item.classes || []).slice(0, 4).map((cls) => `${escapeHtml(cls.className || '')}:${cls.base ?? 0}+${cls.add ?? 0}-${cls.lost ?? 0}`).join(' | ')}</div>
+          </li>
+        `).join('') || '<li class="list-item">目前沒有班級快照。</li>';
+        $('classSnapshotArchiveList').innerHTML = classSnapshots.slice(2).map((item) => `
+          <li class="list-item">
+            <strong>${escapeHtml(item.recordId || '')}</strong>
+            <small>${escapeHtml(item.startDate || '')} ~ ${escapeHtml(item.endDate || '')} ｜ ${item.classCount ?? 0} 個班級</small>
+            <div>起始 ${item.totalBase ?? 0} ｜ 新增 ${item.totalAdd ?? 0} ｜ 流失 ${item.totalLost ?? 0}</div>
+          </li>
+        `).join('') || '<li class="list-item">目前沒有較早班級快照。</li>';
+
+        const adminMonthlyRows = (reference.adminMonthly || []).slice().sort((left, right) => {
+          const leftKey = `${left.year || ''}-${String(left.month || '').padStart(2, '0')}-${left.period || ''}`;
+          const rightKey = `${right.year || ''}-${String(right.month || '').padStart(2, '0')}-${right.period || ''}`;
+          return String(rightKey).localeCompare(String(leftKey));
+        });
+        $('adminMonthlyList').innerHTML = adminMonthlyRows.map((row) => `
+          <li class="list-item">
+            <strong>${escapeHtml(row.period || `${row.year}/${row.month}`)}</strong>
+            <small>學生總數 ${row.studentTotal ?? 0} ｜ 洽詢 ${row.inquiry ?? 0} ｜ 體驗 ${row.trial ?? 0}</small>
+            <div>新增 ${row.newStudent ?? 0} ｜ 轉入 ${row.transfer ?? 0} ｜ 流失 ${row.lost ?? 0} ｜ 訂金 ${row.deposit ?? 0}</div>
+          </li>
+        `).join('') || '<li class="list-item">目前沒有行政月報資料。</li>';
+      }
+
+      function renderSummary() {
+        const scores = state.report && state.report.scores ? state.report.scores : { performance: 0, selfEvaluation: 0, execution: null, overall: 0 };
+        $('fillScopeBadge').textContent = labels.role[currentUser().role] || currentUser().role;
+        $('summaryGrid').innerHTML = `
+          <div class="rail-item metric-card"><span class="muted">績效分數</span><strong>${scores.performance}</strong></div>
+          <div class="rail-item metric-card"><span class="muted">自評分數</span><strong>${scores.selfEvaluation}</strong></div>
+          <div class="rail-item metric-card"><span class="muted">執行分數</span><strong>${scores.execution === null ? '不適用' : scores.execution}</strong></div>
+          <div class="rail-item metric-card"><span class="muted">總分</span><strong>${scores.overall}</strong></div>
+        `;
+      }
+
+      function fieldHtml(label, value, path, type = 'text', attrs = '') {
+        const escaped = type === 'checkbox' ? '' : escapeHtml(value ?? '');
+        const checked = type === 'checkbox' && value ? 'checked' : '';
+        return `<label class="field"><span>${label}</span><input data-path="${path}" type="${type}" value="${escaped}" ${checked} ${attrs}></label>`;
+      }
+
+      function areaHtml(label, value, path) {
+        return `<label class="field"><span>${label}</span><textarea data-path="${path}">${escapeHtml(value ?? '')}</textarea></label>`;
+      }
+
+      function pairedFieldHtml(leftLabel, leftPath, rightLabel, rightPath) {
+        return `
+          <div class="paired-fields">
+            ${fieldHtml(leftLabel, getPathValue(state.report, leftPath), leftPath, 'number')}
+            ${areaHtml(rightLabel, getPathValue(state.report, rightPath), rightPath)}
+          </div>
+        `;
+      }
+
+      function adminSelfEvaluationHtml() {
+        return `
+          <div class="paired-fields">
+            ${fieldHtml('自評分數(0-10)', getPathValue(state.report, 'data.reflection.selfEvaluation'), 'data.reflection.selfEvaluation', 'number', 'min="0" max="10" step="1"')}
+            <div class="text-stack">
+              ${areaHtml('1. 本月覺得自己做對的事', getPathValue(state.report, 'data.reflection.wins'), 'data.reflection.wins')}
+              ${areaHtml('2. 本月需要修正的事', getPathValue(state.report, 'data.reflection.fixes'), 'data.reflection.fixes')}
+              ${areaHtml('3. 想向上反應的事 / 個人工作狀態(勾選並加上文字補充)', getPathValue(state.report, 'data.reflection.upwardFeedback'), 'data.reflection.upwardFeedback')}
+            </div>
+          </div>
+        `;
+      }
+
+      function calculateAdminScores(metrics = {}) {
+        const checklist = metrics.formChecklist || {};
+        const inquiryScore = Number(metrics.inquiryCount || 0) >= 6 ? 2 : Number(metrics.inquiryCount || 0) >= 1 ? 1 : 0;
+        const callScore = Number(metrics.callCount || 0) >= 5 ? 1 : 0;
+        const conversionScore = Number(metrics.conversionRate || 0) >= 80 ? 2 : Number(metrics.conversionRate || 0) >= 70 ? 1 : 0;
+        const posterScore = metrics.posterCompleted ? 1 : 0;
+        const overdueNoticeScore = checklist.overdueNotice ? 1 : 0;
+        const weeklyHeadcountScore = checklist.weeklyHeadcount ? 1 : 0;
+        const monthEndHeadcountScore = checklist.monthEndHeadcount ? 1 : 0;
+        const tuitionBagScore = checklist.tuitionBag ? 1 : 0;
+        const campusFamiliarityScore = Number(metrics.campusFamiliarityRate || 0) >= 80 ? 2 : Number(metrics.campusFamiliarityRate || 0) >= 60 ? 1 : 0;
+        const basicScore = overdueNoticeScore + weeklyHeadcountScore + monthEndHeadcountScore + tuitionBagScore;
+        const recruitmentScore = inquiryScore + callScore + conversionScore + posterScore;
+        const rawTotal = recruitmentScore + basicScore + campusFamiliarityScore;
+        const normalizedTotal = Math.max(0, Math.min(10, Number(((rawTotal / 12) * 10).toFixed(1))));
+        return {
+          inquiryScore,
+          callScore,
+          conversionScore,
+          posterScore,
+          overdueNoticeScore,
+          weeklyHeadcountScore,
+          monthEndHeadcountScore,
+          tuitionBagScore,
+          campusFamiliarityScore,
+          basicScore,
+          recruitmentScore,
+          rawTotal,
+          normalizedTotal,
+        };
+      }
+
+      function scoreFieldHtml(label, path, help, score, type = 'number', attrs = 'min="0" step="1"') {
+        return `
+          <div class="score-row">
+            ${fieldHtml(label, getPathValue(state.report, path), path, type, attrs)}
+            <div class="score-help">${escapeHtml(help)}</div>
+            <div class="score-value">${escapeHtml(score)} 分</div>
+          </div>
+        `;
+      }
+
+      function renderReferenceFormContext() {
+        const reference = state.bootstrap && state.bootstrap.referenceDashboard;
+        const user = currentUser() || {};
+        const meta = state.bootstrap && state.bootstrap.metadata ? state.bootstrap.metadata : {};
+        const latestWeekly = reference && Array.isArray(reference.weeklyRecords) ? reference.weeklyRecords[0] : null;
+        const latestClassSnapshot = reference && Array.isArray(reference.weeklyClasses) ? reference.weeklyClasses[0] : null;
+        const teacherLoad = reference && Array.isArray(reference.teacherLoads)
+          ? reference.teacherLoads.find((row) => String(row.teacher || '').trim() === String(user.name || '').trim() || String(row.teacher || '').trim() === String(user.title || '').trim())
+          : null;
+        const assignedClasses = (state.report && state.report.data && Array.isArray(state.report.data.classAssignments))
+          ? state.report.data.classAssignments
+          : (user.defaultClassAssignments || []);
+        const totalStudents = assignedClasses.reduce((sum, item) => sum + Number(item.studentCount || 0), 0);
+
+        $('referenceFormGrid').innerHTML = [
+          {
+            title: '分校資料',
+            body: [
+              `學校名稱：${escapeHtml(meta.schoolTitle || '')}`,
+              `分校名稱：${escapeHtml(meta.branchName || '')}`,
+              `填報月份：${escapeHtml(state.month || '')}`,
+              `週資料區間：${escapeHtml(latestWeekly ? `${latestWeekly.startDate || ''} ~ ${latestWeekly.endDate || ''}` : '尚無資料')}`,
+            ].join('<br>'),
+          },
+          {
+            title: '老師資料',
+            body: [
+              `老師姓名：${escapeHtml(user.name || '')}`,
+              `人員代碼：${escapeHtml(user.staffCode || '尚未設定')}`,
+              `職務：${escapeHtml(user.duty || user.title || '')}`,
+              `角色：${escapeHtml(labels.role[user.role] || user.role || '')}`,
+              `帶班統計：${teacherLoad ? `${teacherLoad.classCount || 0} 班 / ${teacherLoad.studentCount || 0} 人` : '尚無帶班統計'}`,
+            ].join('<br>'),
+          },
+          {
+            title: '班級資料',
+            body: [
+              `目前班級數：${assignedClasses.length}`,
+              `目前學生數：${totalStudents}`,
+              `班級名單：${assignedClasses.map((item) => escapeHtml(`${item.className || ''}（${item.level || '-'} / ${item.studentCount || 0}人）`)).join('、') || '尚未帶入班級'}`,
+              `班級快照：${escapeHtml(latestClassSnapshot ? `${latestClassSnapshot.recordId || ''} / ${latestClassSnapshot.classCount || 0} 班` : '尚無資料')}`,
+            ].join('<br>'),
+          },
+        ].map((item) => `
+          <div class="rail-item">
+            <strong>${item.title}</strong>
+            <div class="muted" style="margin-top: 8px; line-height: 1.7;">${item.body}</div>
+          </div>
+        `).join('');
+
+        const notes = [];
+        notes.push(`本表單已依 ${labels.role[user.role] || user.role || '使用者'} 身分，預先帶入可用的分校、老師與班級資訊。`);
+        if (teacherLoad) {
+          notes.push(`系統已對應到帶班統計：${teacherLoad.classCount || 0} 班、${teacherLoad.studentCount || 0} 位學生。`);
+        }
+        if (latestWeekly) {
+          notes.push(`參考的最新週資料區間為 ${latestWeekly.startDate || ''} ~ ${latestWeekly.endDate || ''}。`);
+        }
+        if (latestClassSnapshot) {
+          notes.push(`最新班級快照為 ${latestClassSnapshot.recordId || ''}，共 ${latestClassSnapshot.classCount || 0} 個班級。`);
+        }
+        $('referenceFormNotes').innerHTML = notes.map((note) => `<li class="list-item">${escapeHtml(note)}</li>`).join('');
+      }
+
+      function buildTeacherTable(items, type) {
+        if (type === 'class') {
+          return `
+            <div class="table-scroll teacher-class-table">
+            <table>
+              <thead><tr><th>班級 / Class</th><th>級數 / Level</th><th>人數 / Students</th><th>操作 / Action</th></tr></thead>
+              <tbody>
+                ${(items || []).map((item, index) => `
+                  <tr>
+                    <td><input data-path="data.classAssignments.${index}.className" value="${escapeHtml(item.className || '')}"></td>
+                    <td><input data-path="data.classAssignments.${index}.level" value="${escapeHtml(item.level || '')}"></td>
+                    <td><input data-path="data.classAssignments.${index}.studentCount" type="number" min="0" value="${Number(item.studentCount || 0)}"></td>
+                    <td><button class="ghost" type="button" data-remove-class="${index}">刪除 / Delete</button></td>
+                  </tr>`).join('') || '<tr><td colspan="4">目前尚未新增班級。/ No class added yet.</td></tr>'}
+              </tbody>
+            </table>
+            </div>`;
+        }
+
+        if (type === 'teaching') {
+          return `
+            <div class="table-scroll teacher-teaching-table">
+            <table>
+              <thead><tr><th>類別 / Type</th><th>日期 / Date</th><th>班級 / Class</th><th>級數 / Level</th><th>時數 / Hours</th><th>備註 / Notes</th><th>操作 / Action</th></tr></thead>
+              <tbody>
+                ${(items || []).map((item, index) => `
+                  <tr>
+                    <td>
+                      <select data-path="data.teachingRecords.${index}.category">
+                        ${['substitute_for_other','covered_by_other','student_makeup','activity_hosted','training_attended'].map((key) => `<option value="${key}" ${item.category === key ? 'selected' : ''}>${{
+                          substitute_for_other: '幫人代課 / Substitute for others',
+                          covered_by_other: '被人代課 / Covered by others',
+                          student_makeup: '幫學生補課 / Student makeup class',
+                          activity_hosted: '活動舉辦 / Activity hosted',
+                          training_attended: '教學研習 / Training attended',
+                        }[key]}</option>`).join('')}
+                      </select>
+                    </td>
+                    <td><input data-path="data.teachingRecords.${index}.date" type="date" value="${escapeHtml(item.date || '')}"></td>
+                    <td><input data-path="data.teachingRecords.${index}.className" value="${escapeHtml(item.className || '')}"></td>
+                    <td><input data-path="data.teachingRecords.${index}.level" value="${escapeHtml(item.level || '')}"></td>
+                    <td><input data-path="data.teachingRecords.${index}.hours" type="number" min="0" step="0.5" value="${Number(item.hours || 0)}"></td>
+                    <td><input data-path="data.teachingRecords.${index}.note" value="${escapeHtml(item.note || '')}"></td>
+                    <td><button class="ghost" type="button" data-remove-teaching="${index}">刪除 / Delete</button></td>
+                  </tr>`).join('') || '<tr><td colspan="7">目前尚未新增教學紀錄。/ No teaching record added yet.</td></tr>'}
+              </tbody>
+            </table>
+            </div>`;
+        }
+
+        return '';
+      }
+
+      function buildAttendanceTable(items, prefix) {
+        return `
+          <div class="table-scroll ${prefix === 'teacher' ? 'teacher-attendance-table' : ''}">
+          <table>
+            <thead><tr><th>類別 / Type</th><th>日期 / Date</th><th>天數 / Days</th><th>時數 / Hours</th><th>備註 / Notes</th><th>操作 / Action</th></tr></thead>
+            <tbody>
+              ${(items || []).map((item, index) => `
+                <tr>
+                  <td>
+                    <select data-path="data.attendanceRecords.${index}.category">
+                      ${['sick','personal','annual','late'].map((key) => `<option value="${key}" ${item.category === key ? 'selected' : ''}>${{
+                        sick: '病假 / Sick leave',
+                        personal: '事假 / Personal leave',
+                        annual: '特休 / Annual leave',
+                        late: '遲到 / Late',
+                      }[key]}</option>`).join('')}
+                    </select>
+                  </td>
+                  <td><input data-path="data.attendanceRecords.${index}.date" type="date" value="${escapeHtml(item.date || '')}"></td>
+                  <td><input data-path="data.attendanceRecords.${index}.days" type="number" min="0" step="0.5" value="${Number(item.days || 0)}"></td>
+                  <td><input data-path="data.attendanceRecords.${index}.hours" type="number" min="0" step="0.5" value="${Number(item.hours || 0)}"></td>
+                  <td><input data-path="data.attendanceRecords.${index}.note" value="${escapeHtml(item.note || '')}"></td>
+                  <td><button class="ghost" type="button" data-remove-attendance="${prefix}-${index}">刪除 / Delete</button></td>
+                </tr>`).join('') || '<tr><td colspan="6">目前尚未新增出勤紀錄。/ No attendance record added yet.</td></tr>'}
+            </tbody>
+          </table>
+          </div>`;
+      }
+
+      function buildOvertimeTable(items, prefix) {
+        return `
+          <div class="table-scroll">
+          <table>
+            <thead><tr><th>類別 / Type</th><th>日期 / Date</th><th>時數 / Hours</th><th>備註 / Notes</th><th>操作 / Action</th></tr></thead>
+            <tbody>
+              ${(items || []).map((item, index) => `
+                <tr>
+                  <td>
+                    <select data-path="data.overtimeRecords.${index}.category">
+                      ${['weekday','holiday'].map((key) => `<option value="${key}" ${item.category === key ? 'selected' : ''}>${{
+                        weekday: '平常日加班 / Weekday overtime',
+                        holiday: '休假日加班 / Holiday overtime',
+                      }[key]}</option>`).join('')}
+                    </select>
+                  </td>
+                  <td><input data-path="data.overtimeRecords.${index}.date" type="date" value="${escapeHtml(item.date || '')}"></td>
+                  <td><input data-path="data.overtimeRecords.${index}.hours" type="number" min="0" step="0.5" value="${Number(item.hours || 0)}"></td>
+                  <td><input data-path="data.overtimeRecords.${index}.note" value="${escapeHtml(item.note || '')}"></td>
+                  <td><button class="ghost" type="button" data-remove-overtime="${prefix}-${index}">刪除 / Delete</button></td>
+                </tr>`).join('') || '<tr><td colspan="5">目前尚未新增加班申請紀錄。/ No overtime record added yet.</td></tr>'}
+            </tbody>
+          </table>
+          </div>`;
+      }
+
+      function normalizePartTimeData() {
+        if (!state.report) return;
+        const data = state.report.data = state.report.data || {};
+        const contract = data.partTimeContract = data.partTimeContract || {};
+        const records = Array.isArray(data.partTimeRecords) ? data.partTimeRecords : [];
+        let teachingHours = 0;
+        let adminHours = 0;
+        records.forEach((record) => {
+          const hours = Number(record.hours || 0);
+          if (record.category === 'admin') adminHours += hours;
+          else teachingHours += hours;
+        });
+        contract.teachingHourlyRate = Number(contract.teachingHourlyRate || currentUser().teachingHourlyRate || 750);
+        contract.adminHourlyRate = Number(contract.adminHourlyRate || currentUser().adminHourlyRate || 350);
+        contract.contractEndDate = contract.contractEndDate || currentUser().contractEndDate || '2026-04-30';
+        contract.teachingHours = Math.round(teachingHours * 10) / 10;
+        contract.adminHours = Math.round(adminHours * 10) / 10;
+        contract.hourlyDifference = Math.max(contract.teachingHourlyRate - contract.adminHourlyRate, 0);
+        contract.totalCompensation = Math.round((contract.teachingHours + contract.adminHours) * contract.teachingHourlyRate);
+        contract.overpaidDifference = Math.round(contract.adminHours * contract.hourlyDifference);
+      }
+
+      function normalizeAssistantData() {
+        if (!state.report) return;
+        const data = state.report.data = state.report.data || {};
+        const timesheet = data.assistantTimesheet = data.assistantTimesheet || {};
+        const records = Array.isArray(timesheet.records) ? timesheet.records : [];
+        timesheet.records = records.map((record, index) => ({
+          id: record.id || `assistant-${index + 1}`,
+          date: record.date || '',
+          weekday: record.weekday || '',
+          description: record.description || '',
+          timeRange: record.timeRange || '',
+          hours: Number(record.hours || 0),
+        }));
+        timesheet.totalHours = Math.round(timesheet.records.reduce((sum, item) => sum + Number(item.hours || 0), 0) * 10) / 10;
+        data.reflection = data.reflection || {
+          selfEvaluation: 8,
+          selfEvaluationReason: '',
+          wins: '',
+          fixes: '',
+          upwardFeedback: '',
+          nextMonthGoal: '',
+        };
+      }
+
+      function updateAssistantTotalHoursDisplay() {
+        const totalHours = state.report?.data?.assistantTimesheet?.totalHours ?? 0;
+        const totalInput = document.querySelector('[data-path="data.assistantTimesheet.totalHours"]');
+        if (totalInput) totalInput.value = totalHours;
+      }
+
+      function buildPartTimeRecordsTable(records) {
+        return `
+          <div class="table-scroll">
+          <table>
+            <thead><tr><th>執行類別</th><th>日期</th><th>星期</th><th>執行內容描述</th><th>開始</th><th>結束</th><th>時數</th><th>操作</th></tr></thead>
+            <tbody>
+              ${(records || []).map((item, index) => `
+                <tr>
+                  <td><select data-path="data.partTimeRecords.${index}.category"><option value="teaching" ${item.category !== 'admin' ? 'selected' : ''}>實際授課</option><option value="admin" ${item.category === 'admin' ? 'selected' : ''}>教務執行</option></select></td>
+                  <td><input data-path="data.partTimeRecords.${index}.date" type="date" value="${escapeHtml(item.date || '')}"></td>
+                  <td><input data-path="data.partTimeRecords.${index}.weekday" value="${escapeHtml(item.weekday || '')}" placeholder="例如 週三"></td>
+                  <td><input data-path="data.partTimeRecords.${index}.description" value="${escapeHtml(item.description || '')}" placeholder="請簡述成果"></td>
+                  <td><input data-path="data.partTimeRecords.${index}.startTime" type="time" value="${escapeHtml(item.startTime || '')}"></td>
+                  <td><input data-path="data.partTimeRecords.${index}.endTime" type="time" value="${escapeHtml(item.endTime || '')}"></td>
+                  <td><input data-path="data.partTimeRecords.${index}.hours" type="number" min="0" step="0.5" value="${Number(item.hours || 0)}"></td>
+                  <td><button class="ghost" data-remove-parttime="${index}" type="button">刪除</button></td>
+                </tr>
+              `).join('') || '<tr><td colspan="8">請新增執行紀錄。</td></tr>'}
+            </tbody>
+          </table>
+          </div>`;
+      }
+
+      function buildAssistantTimesheetTable(records) {
+        return `
+          <div class="table-scroll">
+          <table>
+            <thead><tr><th>日期</th><th>星期</th><th>執行內容描述（請簡述成果）</th><th>起訖時間</th><th>上班時數</th><th>操作</th></tr></thead>
+            <tbody>
+              ${(records || []).map((item, index) => `
+                <tr>
+                  <td><input data-path="data.assistantTimesheet.records.${index}.date" type="date" value="${escapeHtml(item.date || '')}"></td>
+                  <td><input data-path="data.assistantTimesheet.records.${index}.weekday" value="${escapeHtml(item.weekday || '')}" placeholder="例如 週六"></td>
+                  <td><input data-path="data.assistantTimesheet.records.${index}.description" value="${escapeHtml(item.description || '')}" placeholder="請簡述成果"></td>
+                  <td><input data-path="data.assistantTimesheet.records.${index}.timeRange" value="${escapeHtml(item.timeRange || '')}" placeholder="例如 13:00-17:00"></td>
+                  <td><input data-path="data.assistantTimesheet.records.${index}.hours" type="number" min="0" step="0.5" value="${Number(item.hours || 0)}"></td>
+                  <td><button class="ghost" data-remove-assistant-record="${index}" type="button">刪除</button></td>
+                </tr>
+              `).join('') || '<tr><td colspan="6">請新增本月工讀 / 助教時數紀錄。</td></tr>'}
+            </tbody>
+          </table>
+          </div>`;
+      }
+
+      function bindFields() {
+        document.querySelectorAll('[data-path]').forEach((el) => {
+          const path = el.getAttribute('data-path');
+          const parser = el.type === 'number' ? Number : el.type === 'checkbox' ? Boolean : (value) => value;
+          const readValue = (event) => event.target.type === 'checkbox' ? event.target.checked : event.target.value;
+          const shouldRefreshAdminScores = isAdmin() && path.indexOf('data.performanceMetrics.') === 0;
+          const shouldRefreshPartTime = isPartTimeTeacher() && path.indexOf('data.partTime') === 0;
+          const shouldRefreshAssistant = isAssistantUser() && path.indexOf('data.assistantTimesheet') === 0;
+          el.oninput = (event) => setPath(path, readValue(event), parser, false);
+          el.onchange = (event) => setPath(path, readValue(event), parser, shouldRefreshAdminScores || shouldRefreshPartTime || shouldRefreshAssistant);
+        });
+
+        document.querySelectorAll('[data-remove-class]').forEach((btn) => {
+          btn.onclick = () => {
+            state.report.data.classAssignments.splice(Number(btn.getAttribute('data-remove-class')), 1);
+            renderFill();
+          };
+        });
+
+        document.querySelectorAll('[data-remove-teaching]').forEach((btn) => {
+          btn.onclick = () => {
+            state.report.data.teachingRecords.splice(Number(btn.getAttribute('data-remove-teaching')), 1);
+            renderFill();
+          };
+        });
+
+        document.querySelectorAll('[data-remove-attendance]').forEach((btn) => {
+          btn.onclick = () => {
+            const index = Number(btn.getAttribute('data-remove-attendance').split('-').pop());
+            state.report.data.attendanceRecords.splice(index, 1);
+            renderFill();
+          };
+        });
+
+        document.querySelectorAll('[data-remove-overtime]').forEach((btn) => {
+          btn.onclick = () => {
+            const index = Number(btn.getAttribute('data-remove-overtime').split('-').pop());
+            state.report.data.overtimeRecords = Array.isArray(state.report.data.overtimeRecords) ? state.report.data.overtimeRecords : [];
+            state.report.data.overtimeRecords.splice(index, 1);
+            renderFill();
+          };
+        });
+
+        document.querySelectorAll('[data-remove-parttime]').forEach((btn) => {
+          btn.onclick = () => {
+            state.report.data.partTimeRecords.splice(Number(btn.getAttribute('data-remove-parttime')), 1);
+            renderFill();
+          };
+        });
+
+        document.querySelectorAll('[data-remove-assistant-record]').forEach((btn) => {
+          btn.onclick = () => {
+            state.report.data.assistantTimesheet.records.splice(Number(btn.getAttribute('data-remove-assistant-record')), 1);
+            renderFill();
+          };
+        });
+      }
+
+      function setPath(path, value, parser = (x) => x, refreshAdminScores = false) {
+        const next = JSON.parse(JSON.stringify(state.report));
+        const parts = path.split('.');
+        let target = next;
+        for (let i = 0; i < parts.length - 1; i += 1) {
+          target = target[parts[i]];
+        }
+        target[parts[parts.length - 1]] = parser(value);
+        state.report = next;
+        renderSummary();
+        if (isPartTimeTeacher()) {
+          normalizePartTimeData();
+        }
+        if (isAssistantUser()) {
+          normalizeAssistantData();
+          updateAssistantTotalHoursDisplay();
+        }
+        if (refreshAdminScores) {
+          renderFill();
+        }
+      }
+
+      function renderFill() {
+        if (!state.report) return;
+        renderSummary();
+        renderReferenceFormContext();
+        $('partTimeSection').classList.toggle('hidden', !isPartTimeTeacher());
+        $('assistantSection').classList.toggle('hidden', !isAssistantUser());
+        $('standardReportActions').classList.toggle('hidden', isPartTimeTeacher());
+        if (isPartTimeTeacher()) {
+          $('teacherSection').classList.add('hidden');
+          $('adminSection').classList.add('hidden');
+          $('assistantSection').classList.add('hidden');
+          $('fillHeading').textContent = '兼任老師月報填報';
+          state.report.data.partTimeContract = state.report.data.partTimeContract || {};
+          state.report.data.partTimeRecords = Array.isArray(state.report.data.partTimeRecords) ? state.report.data.partTimeRecords : [];
+          normalizePartTimeData();
+          const contract = state.report.data.partTimeContract || {};
+          $('partTimeContract').innerHTML = [
+            fieldHtml('授課時數時薪', contract.teachingHourlyRate, 'data.partTimeContract.teachingHourlyRate', 'number', 'min="0" step="1"'),
+            fieldHtml('非教學教務執行時數時薪', contract.adminHourlyRate, 'data.partTimeContract.adminHourlyRate', 'number', 'min="0" step="1"'),
+            fieldHtml('兼任時間合約到期日', contract.contractEndDate, 'data.partTimeContract.contractEndDate', 'date'),
+            fieldHtml('本月總授課時數(A)', contract.teachingHours, 'data.partTimeContract.teachingHours', 'number', 'readonly'),
+            fieldHtml('本月總非教學時數(B)', contract.adminHours, 'data.partTimeContract.adminHours', 'number', 'readonly'),
+            fieldHtml('本月應支領報酬', contract.totalCompensation, 'data.partTimeContract.totalCompensation', 'number', 'readonly'),
+            fieldHtml('未履行合約溢領價差', contract.overpaidDifference, 'data.partTimeContract.overpaidDifference', 'number', 'readonly'),
+          ].join('');
+          $('partTimeRecordsTable').innerHTML = buildPartTimeRecordsTable(state.report.data.partTimeRecords || []);
+          $('partTimeReflection').innerHTML = [
+            areaHtml('承攬人聲明', contract.contractorStatement || '', 'data.partTimeContract.contractorStatement'),
+            pairedFieldHtml('自評分數', 'data.reflection.selfEvaluation', '自評說明', 'data.reflection.selfEvaluationReason'),
+            areaHtml('本月成果摘要', getPathValue(state.report, 'data.reflection.wins'), 'data.reflection.wins'),
+            areaHtml('待改善與支援需求', getPathValue(state.report, 'data.reflection.fixes'), 'data.reflection.fixes'),
+            areaHtml('向上回饋', getPathValue(state.report, 'data.reflection.upwardFeedback'), 'data.reflection.upwardFeedback'),
+          ].join('');
+        } else if (isAssistantUser()) {
+          $('teacherSection').classList.add('hidden');
+          $('adminSection').classList.add('hidden');
+          $('partTimeSection').classList.add('hidden');
+          $('assistantSection').classList.remove('hidden');
+          $('fillHeading').textContent = '工讀 / 助教月報填報';
+          state.report.data.assistantTimesheet = state.report.data.assistantTimesheet || {};
+          state.report.data.assistantTimesheet.records = Array.isArray(state.report.data.assistantTimesheet.records) ? state.report.data.assistantTimesheet.records : [];
+          normalizeAssistantData();
+          const timesheet = state.report.data.assistantTimesheet || {};
+          $('assistantTimesheetTable').innerHTML = buildAssistantTimesheetTable(timesheet.records || []);
+          $('assistantSummary').innerHTML = [
+            fieldHtml('本月總上班時數', timesheet.totalHours || 0, 'data.assistantTimesheet.totalHours', 'number', 'readonly'),
+            fieldHtml('自評分數', getPathValue(state.report, 'data.reflection.selfEvaluation'), 'data.reflection.selfEvaluation', 'number', 'min="0" max="10" step="1"'),
+          ].join('');
+          $('assistantReflection').innerHTML = [
+            areaHtml('自評說明', getPathValue(state.report, 'data.reflection.selfEvaluationReason'), 'data.reflection.selfEvaluationReason'),
+            areaHtml('本月完成事項 / 成果摘要', getPathValue(state.report, 'data.reflection.wins'), 'data.reflection.wins'),
+            areaHtml('本月需要協助或改善事項', getPathValue(state.report, 'data.reflection.fixes'), 'data.reflection.fixes'),
+            areaHtml('想向上反應的事 / 個人工作狀態', getPathValue(state.report, 'data.reflection.upwardFeedback'), 'data.reflection.upwardFeedback'),
+            areaHtml('下月目標', getPathValue(state.report, 'data.reflection.nextMonthGoal'), 'data.reflection.nextMonthGoal'),
+          ].join('');
+        } else if (isTeacher()) {
+          $('teacherSection').classList.remove('hidden');
+          $('adminSection').classList.add('hidden');
+          $('partTimeSection').classList.add('hidden');
+          $('assistantSection').classList.add('hidden');
+          const teacherReportTitle = currentUser().role === 'tutor'
+            ? '課輔老師月報填報 / Tutor Monthly Report'
+            : '英文老師月報填報 / English Teacher Monthly Report';
+          $('fillHeading').textContent = currentUser().role === 'tutor' ? '課輔老師月報填報' : '英語老師月報填報';
+          $('teacherReportTitle').textContent = teacherReportTitle;
+          state.report.data.overtimeRecords = Array.isArray(state.report.data.overtimeRecords) ? state.report.data.overtimeRecords : [];
+          $('classTable').innerHTML = buildTeacherTable(state.report.data.classAssignments || [], 'class');
+          $('attendanceTable').innerHTML = buildAttendanceTable(state.report.data.attendanceRecords || [], 'teacher');
+          $('teachingTable').innerHTML = buildTeacherTable(state.report.data.teachingRecords || [], 'teaching');
+          $('teacherOvertimeTable').innerHTML = buildOvertimeTable(state.report.data.overtimeRecords || [], 'teacher');
+          $('teacherMetrics').className = 'metrics-grid';
+          $('teacherReflection').className = 'text-stack';
+          $('teacherMetrics').innerHTML = [
+            ['試讀人數 / Trial Students', 'data.performanceMetrics.trialStudents'],
+            ['進班學生數 / Enrolled Students', 'data.performanceMetrics.convertedStudents'],
+            ['級測學生數 / Level Test Students', 'data.performanceMetrics.gradeTestStudents'],
+            ['作業錯誤率 / Homework Error Rate', 'data.performanceMetrics.homeworkErrorRate'],
+            ['電話輔導成功率 / Phone Coaching Success Rate', 'data.performanceMetrics.phoneSupportSuccessRate'],
+            ['問班學生數 / Inquiry Students', 'data.performanceMetrics.inquiryStudentCount'],
+          ].map((item) => fieldHtml(item[0], getPathValue(state.report, item[1]), item[1], 'number')).join('');
+          $('teacherReflection').innerHTML = [
+            pairedFieldHtml('不可避免流失人數 / Unavoidable Losses', 'data.performanceMetrics.unavoidableLosses', '不可避免流失說明 / Explanation', 'data.performanceMetrics.unavoidableLossNotes'),
+            pairedFieldHtml('可避免流失人數 / Avoidable Losses', 'data.performanceMetrics.avoidableLosses', '可避免流失說明 / Explanation', 'data.performanceMetrics.avoidableLossNotes'),
+            pairedFieldHtml('自評分數 / Self Rating', 'data.reflection.selfEvaluation', '自評說明 / Self Review Notes', 'data.reflection.selfEvaluationReason'),
+            areaHtml('本月做對的事情 / What I Did Well This Month (at least 3 bullet points)', getPathValue(state.report, 'data.reflection.wins'), 'data.reflection.wins'),
+            areaHtml('本月待改善事項 / What I Need to Improve This Month (at least 3 bullet points)', getPathValue(state.report, 'data.reflection.fixes'), 'data.reflection.fixes'),
+            areaHtml('向上回饋 / Feedback to Management', getPathValue(state.report, 'data.reflection.upwardFeedback'), 'data.reflection.upwardFeedback'),
+            areaHtml('本月最想表揚的人跟原因 / Person I Want to Praise and Why', getPathValue(state.report, 'data.reflection.teamPraise'), 'data.reflection.teamPraise'),
+            areaHtml('下月目標 / Goals for Next Month (at least 3 bullet points)', getPathValue(state.report, 'data.reflection.nextMonthGoal'), 'data.reflection.nextMonthGoal'),
+          ].join('');
+          $('complaints').value = state.report.data.complaints || '';
+          $('complaints').oninput = (e) => setPath('data.complaints', e.target.value);
+          $('complaintHandling').value = state.report.data.complaintHandling || '';
+          $('complaintHandling').oninput = (e) => setPath('data.complaintHandling', e.target.value);
+        } else {
+          $('teacherSection').classList.add('hidden');
+          $('adminSection').classList.remove('hidden');
+          $('partTimeSection').classList.add('hidden');
+          $('assistantSection').classList.add('hidden');
+          $('fillHeading').textContent = '行政老師月報填報';
+          state.report.data.performanceMetrics = state.report.data.performanceMetrics || {};
+          if (state.report.data.performanceMetrics.entryStudentCount === undefined) {
+            state.report.data.performanceMetrics.entryStudentCount = Number(state.report.data.performanceMetrics.newEnrollments || 0);
+          }
+          state.report.data.overtimeRecords = Array.isArray(state.report.data.overtimeRecords) ? state.report.data.overtimeRecords : [];
+          $('adminAttendanceTable').innerHTML = buildAttendanceTable(state.report.data.attendanceRecords || [], 'admin');
+          $('adminOvertimeTable').innerHTML = buildOvertimeTable(state.report.data.overtimeRecords || [], 'admin');
+          $('adminMetrics').className = 'score-section';
+          $('adminChecklist').className = 'score-section';
+          $('adminReflection').className = 'text-stack';
+          const adminScores = calculateAdminScores(state.report.data.performanceMetrics || {});
+          $('adminMetrics').innerHTML = `
+            <h5>1. 櫃詢及招生績效</h5>
+            ${scoreFieldHtml('櫃詢次數', 'data.performanceMetrics.inquiryCount', '0 次：0 分 / 1-5 次：1 分 / 6 次以上：2 分', adminScores.inquiryScore)}
+            ${scoreFieldHtml('Call 班次數', 'data.performanceMetrics.callCount', '0 通：0 分 / 接通 5 通以上：1 分', adminScores.callScore)}
+            ${scoreFieldHtml('櫃詢成功率', 'data.performanceMetrics.conversionRate', '80% 以上：2 分 / 70-79%：1 分 / 未滿 70%：0 分', adminScores.conversionScore)}
+            ${scoreFieldHtml('製作海報', 'data.performanceMetrics.posterCompleted', '有：1 分 / 沒有：0 分', adminScores.posterScore, 'checkbox', '')}
+            <h5>3. 分校掌握度</h5>
+            ${scoreFieldHtml('分校掌握度(學生/班級/老師配對)', 'data.performanceMetrics.campusFamiliarityRate', '80% 以上學生：2 分 / 60-79%：1 分 / 60% 以下：0 分', adminScores.campusFamiliarityScore)}
+            <div class="score-row score-total">
+              ${fieldHtml('進班人數(附表)', getPathValue(state.report, 'data.performanceMetrics.entryStudentCount'), 'data.performanceMetrics.entryStudentCount', 'number', 'min="0" step="1"')}
+              ${areaHtml('填寫進班的學生與班級', getPathValue(state.report, 'data.performanceMetrics.entryStudentNotes'), 'data.performanceMetrics.entryStudentNotes')}
+              <div class="score-value">參考</div>
+            </div>
+            <div class="score-row score-total">
+              <div><strong>4. 績效總評比</strong><div class="muted">系統自動加總以上 3 項業務</div></div>
+              <div class="score-help">櫃詢及招生 ${adminScores.recruitmentScore} 分 + 基本業務 ${adminScores.basicScore} 分 + 分校掌握度 ${adminScores.campusFamiliarityScore} 分 = ${adminScores.rawTotal} / 12</div>
+              <div class="score-value">${adminScores.normalizedTotal} / 10</div>
+            </div>
+          `;
+          $('adminChecklist').innerHTML = `
+            <h5>2. 基本業務</h5>
+            ${scoreFieldHtml('學費催繳通知', 'data.performanceMetrics.formChecklist.overdueNotice', '準時：1 分 / 未完成：0 分', adminScores.overdueNoticeScore, 'checkbox', '')}
+            ${scoreFieldHtml('週人數統計填報', 'data.performanceMetrics.formChecklist.weeklyHeadcount', '準時：1 分 / 未完成：0 分', adminScores.weeklyHeadcountScore, 'checkbox', '')}
+            ${scoreFieldHtml('月底人數統計填報', 'data.performanceMetrics.formChecklist.monthEndHeadcount', '準時：1 分 / 未完成：0 分', adminScores.monthEndHeadcountScore, 'checkbox', '')}
+            ${scoreFieldHtml('學費袋製作', 'data.performanceMetrics.formChecklist.tuitionBag', '準時：1 分 / 未完成：0 分', adminScores.tuitionBagScore, 'checkbox', '')}
+          `;
+          $('adminReflection').innerHTML = [
+            adminSelfEvaluationHtml(),
+            pairedFieldHtml('執行力分數(0-10)', 'data.reflection.execution', '補充描述原因', 'data.reflection.executionReason'),
+            areaHtml('本月想要特別讚許的團隊夥伴以及原因', getPathValue(state.report, 'data.reflection.teamPraise'), 'data.reflection.teamPraise'),
+            areaHtml('下月目標', getPathValue(state.report, 'data.reflection.nextMonthGoal'), 'data.reflection.nextMonthGoal'),
+          ].join('');
+        }
+        bindFields();
+      }
+
+      function getPathValue(obj, path) {
+        return path.split('.').reduce((acc, key) => (acc ? acc[key] : undefined), obj);
+      }
+
+      function downloadBase64File(base64, fileName, mimeType = 'application/pdf') {
+        const binary = atob(base64);
+        const bytes = new Uint8Array(binary.length);
+        for (let i = 0; i < binary.length; i += 1) {
+          bytes[i] = binary.charCodeAt(i);
+        }
+        const blob = new Blob([bytes], { type: mimeType });
+        const url = URL.createObjectURL(blob);
+        const link = document.createElement('a');
+        link.href = url;
+        link.download = fileName || 'monthly-report.pdf';
+        document.body.appendChild(link);
+        link.click();
+        link.remove();
+        setTimeout(() => URL.revokeObjectURL(url), 1000);
+      }
+
+      function handlePdfExportResult(result) {
+        if (result && result.pdfBase64) {
+          downloadBase64File(result.pdfBase64, result.fileName, result.mimeType || 'application/pdf');
+          return result.fileName || 'PDF 檔案';
+        }
+        if (result && result.pdfUrl) {
+          window.open(result.pdfUrl, '_blank');
+          return result.pdfUrl;
+        }
+        throw new Error('PDF 匯出回傳內容異常');
+      }
+
+      function prepareReportForSave(status) {
+        if (isPartTimeTeacher()) {
+          normalizePartTimeData();
+        }
+        const next = JSON.parse(JSON.stringify(state.report));
+        next.status = status;
+        if (next.role === 'admin') {
+          next.data = next.data || {};
+          next.data.performanceMetrics = next.data.performanceMetrics || {};
+          const metrics = next.data.performanceMetrics;
+          metrics.entryStudentCount = Number(metrics.entryStudentCount ?? metrics.newEnrollments ?? 0);
+          metrics.newEnrollments = metrics.entryStudentCount;
+          metrics.entryStudentNotes = String(metrics.entryStudentNotes || '');
+        }
+        return next;
+      }
+
+      function showSubmitConfirm() {
+        renderSubmitConfirm();
+        setSubmitConfirmMessage('');
+        $('submitConfirmModal').classList.remove('hidden');
+      }
+
+      function hideSubmitConfirm() {
+        $('submitConfirmModal').classList.add('hidden');
+        setSubmitConfirmMessage('');
+      }
+
+      function renderSubmitConfirm() {
+        const report = state.report || {};
+        const data = report.data || {};
+        const metrics = data.performanceMetrics || {};
+        const reflection = data.reflection || {};
+        const attendanceCount = (data.attendanceRecords || []).length;
+        const teachingCount = (data.teachingRecords || []).length;
+        const overtimeCount = (data.overtimeRecords || []).length;
+        const classCount = (data.classAssignments || []).length;
+        const studentCount = (data.classAssignments || []).reduce((sum, item) => sum + Number(item.studentCount || 0), 0);
+        const checklist = metrics.formChecklist || {};
+        const rows = report.role === 'teacher'
+          ? [
+            ['填報月份', report.month || state.month],
+            ['填表人', currentUser().name],
+            ['帶班班級 / 人數', `${classCount} 班 / ${studentCount} 人`],
+            ['出勤紀錄', `${attendanceCount} 筆`],
+            ['教學紀錄', `${teachingCount} 筆`],
+            ['加班申請紀錄', `${overtimeCount} 筆`],
+            ['試讀 / 進班', `${metrics.trialStudents || 0} / ${metrics.convertedStudents || 0}`],
+            ['問班學生數', metrics.inquiryStudentCount || 0],
+            ['自評分數', reflection.selfEvaluation || 0],
+          ]
+          : [
+            ['填報月份', report.month || state.month],
+            ['填表人', currentUser().name],
+            ['進班人數', metrics.entryStudentCount ?? metrics.newEnrollments ?? 0],
+            ['請假紀錄', `${attendanceCount} 筆`],
+            ['加班申請紀錄', `${overtimeCount} 筆`],
+            ['櫃詢 / Call 班', `${metrics.inquiryCount || 0} / ${metrics.callCount || 0}`],
+            ['櫃詢成功率', `${metrics.conversionRate || 0}%`],
+            ['基本業務完成', [metrics.posterCompleted, checklist.overdueNotice, checklist.weeklyHeadcount, checklist.monthEndHeadcount, checklist.tuitionBag].filter(Boolean).length + ' / 5'],
+            ['自評 / 執行力', `${reflection.selfEvaluation || 0} / ${reflection.execution || 0}`],
+          ];
+        $('submitConfirmContent').innerHTML = `
+          <div class="confirm-grid">
+            ${rows.map(([label, value]) => `<div class="confirm-item"><strong>${escapeHtml(label)}</strong><span>${escapeHtml(value)}</span></div>`).join('')}
+          </div>
+          <div class="card" style="margin-top: 12px;">
+            <strong>送出提醒</strong>
+            <p class="muted" style="line-height:1.7; margin-bottom:0;">請確認數字、日期與文字說明都已完成。若仍需調整，請按「繼續修改月報資料」。</p>
+          </div>
+        `;
+      }
+
+      function detailMetricGrid(rows) {
+        return `<div class="confirm-grid">${rows.map(([label, value]) => `
+          <div class="confirm-item"><strong>${escapeHtml(label)}</strong><span>${escapeHtml(value ?? '')}</span></div>
+        `).join('')}</div>`;
+      }
+
+      function detailTable(headers, rows, emptyText) {
+        if (!rows || !rows.length) {
+          return `<div class="list-item">${escapeHtml(emptyText || '目前沒有資料。')}</div>`;
+        }
+        return `
+          <table class="compact-table">
+            <thead><tr>${headers.map((header) => `<th>${escapeHtml(header)}</th>`).join('')}</tr></thead>
+            <tbody>${rows.map((row) => `<tr>${row.map((cell) => `<td>${escapeHtml(cell ?? '')}</td>`).join('')}</tr>`).join('')}</tbody>
+          </table>
+        `;
+      }
+
+      function detailTextBlock(label, value) {
+        return `
+          <div class="list-item">
+            <strong>${escapeHtml(label)}</strong>
+            <div style="white-space:pre-wrap; margin-top:6px;">${escapeHtml(value || '未填寫')}</div>
+          </div>
+        `;
+      }
+
+      function renderFullReportContent(report) {
+        const data = report.data || {};
+        const metrics = data.performanceMetrics || {};
+        const reflection = data.reflection || {};
+        const checklist = metrics.formChecklist || {};
+        const attendanceRows = (data.attendanceRecords || []).map((item) => [
+          labels.attendance && labels.attendance[item.category] ? labels.attendance[item.category] : item.category,
+          item.date || '',
+          item.days || 0,
+          item.hours || 0,
+          item.note || '',
+        ]);
+        const overtimeRows = (data.overtimeRecords || []).map((item) => [
+          labels.overtime && labels.overtime[item.category] ? labels.overtime[item.category] : item.category,
+          item.date || '',
+          item.hours || 0,
+          item.note || '',
+        ]);
+
+        const attendanceHtml = `
+          <div class="card" style="margin-top: 12px;">
+            <strong>出勤 / 請假紀錄</strong>
+            <div style="margin-top: 10px;">${detailTable(['類別', '日期', '天數', '時數', '備註'], attendanceRows, '目前沒有出勤或請假紀錄。')}</div>
+          </div>
+        `;
+        const overtimeHtml = `
+          <div class="card" style="margin-top: 12px;">
+            <strong>加班申請紀錄</strong>
+            <div style="margin-top: 10px;">${detailTable(['類別', '日期', '時數', '備註'], overtimeRows, '目前沒有加班申請紀錄。')}</div>
+          </div>
+        `;
+
+        if (isAssistantReport(report)) {
+          const timesheet = data.assistantTimesheet || {};
+          const recordRows = (timesheet.records || []).map((item) => [
+            item.date || '',
+            item.weekday || '',
+            item.description || '',
+            item.timeRange || '',
+            item.hours || 0,
+          ]);
+          return `
+            <div class="card" style="margin-top: 12px;">
+              <strong>工讀 / 助教時數摘要</strong>
+              ${detailMetricGrid([
+                ['本月總上班時數', timesheet.totalHours || 0],
+                ['自評分數', reflection.selfEvaluation || 0],
+              ])}
+            </div>
+            <div class="card" style="margin-top: 12px;">
+              <strong>本月時數明細</strong>
+              <div style="margin-top: 10px;">${detailTable(['日期', '星期', '執行內容描述', '起訖時間', '上班時數'], recordRows, '目前沒有工讀 / 助教時數紀錄。')}</div>
+            </div>
+            <div class="card" style="margin-top: 12px;">
+              <strong>自評與回饋</strong>
+              <div class="list" style="margin-top: 10px;">
+                ${detailTextBlock('自評說明', reflection.selfEvaluationReason)}
+                ${detailTextBlock('本月完成事項 / 成果摘要', reflection.wins)}
+                ${detailTextBlock('本月需要協助或改善事項', reflection.fixes)}
+                ${detailTextBlock('想向上反應的事 / 個人工作狀態', reflection.upwardFeedback)}
+                ${detailTextBlock('下月目標', reflection.nextMonthGoal)}
+              </div>
+            </div>
+          `;
+        }
+
+        if (isPartTimeReport(report)) {
+          const contract = data.partTimeContract || {};
+          const recordRows = (data.partTimeRecords || []).map((item) => [
+            item.category === 'admin' ? '教務執行' : '實際授課',
+            item.date || '',
+            item.weekday || '',
+            item.description || '',
+            `${item.startTime || ''} - ${item.endTime || ''}`,
+            item.hours || 0,
+          ]);
+          return `
+            <div class="card" style="margin-top: 12px;">
+              <strong>兼任老師教學專案成果摘要</strong>
+              ${detailMetricGrid([
+                ['授課時薪', contract.teachingHourlyRate || 0],
+                ['非教學教務時薪', contract.adminHourlyRate || 0],
+                ['本月總授課時數(A)', contract.teachingHours || 0],
+                ['本月總非教學時數(B)', contract.adminHours || 0],
+                ['本月應支領報酬', contract.totalCompensation || 0],
+                ['未履行合約溢領價差', contract.overpaidDifference || 0],
+                ['兼任合約到期日', contract.contractEndDate || ''],
+              ])}
+            </div>
+            <div class="card" style="margin-top: 12px;">
+              <strong>執行成果明細</strong>
+              <div style="margin-top: 10px;">${detailTable(['類別', '日期', '星期', '執行內容描述', '起訖時間', '時數'], recordRows, '目前沒有兼任執行紀錄。')}</div>
+            </div>
+            <div class="card" style="margin-top: 12px;">
+              <strong>承攬人聲明與自評</strong>
+              <div class="list" style="margin-top: 10px;">
+                ${detailTextBlock('承攬人聲明', contract.contractorStatement)}
+                ${detailTextBlock('自評說明', reflection.selfEvaluationReason)}
+                ${detailTextBlock('本月成果摘要', reflection.wins)}
+                ${detailTextBlock('待改善與支援需求', reflection.fixes)}
+                ${detailTextBlock('向上回饋', reflection.upwardFeedback)}
+              </div>
+            </div>
+          `;
+        }
+
+        if (['teacher', 'tutor'].includes(report.role)) {
+          const classRows = (data.classAssignments || []).map((item) => [item.className || '', item.level || '', item.studentCount || 0]);
+          const teachingRows = (data.teachingRecords || []).map((item) => [
+            labels.teacherWork && labels.teacherWork[item.category] ? labels.teacherWork[item.category] : item.category,
+            item.date || '',
+            item.className || '',
+            item.level || '',
+            item.hours || 0,
+            item.note || '',
+          ]);
+          return `
+            <div class="card" style="margin-top: 12px;">
+              <strong>帶班班級與級數人數</strong>
+              <div style="margin-top: 10px;">${detailTable(['班級', '級數', '人數'], classRows, '目前沒有帶班班級資料。')}</div>
+            </div>
+            ${attendanceHtml}
+            <div class="card" style="margin-top: 12px;">
+              <strong>教學紀錄</strong>
+              <div style="margin-top: 10px;">${detailTable(['類別', '日期', '班級', '級數', '時數', '備註'], teachingRows, '目前沒有教學紀錄。')}</div>
+            </div>
+            ${overtimeHtml}
+            <div class="card" style="margin-top: 12px;">
+              <strong>績效數據</strong>
+              ${detailMetricGrid([
+                ['試讀人數', metrics.trialStudents || 0],
+                ['進班學生數', metrics.convertedStudents || 0],
+                ['級測學生數', metrics.gradeTestStudents || 0],
+                ['作業錯誤率', `${metrics.homeworkErrorRate || 0}%`],
+                ['電話輔導成功率', `${metrics.phoneSupportSuccessRate || 0}%`],
+                ['問班學生數', metrics.inquiryStudentCount || 0],
+                ['不可避免流失', `${metrics.unavoidableLosses || 0}｜${metrics.unavoidableLossNotes || ''}`],
+                ['可避免流失', `${metrics.avoidableLosses || 0}｜${metrics.avoidableLossNotes || ''}`],
+                ['自評分數', reflection.selfEvaluation || 0],
+              ])}
+            </div>
+            <div class="card" style="margin-top: 12px;">
+              <strong>反思與回饋</strong>
+              <div class="list" style="margin-top: 10px;">
+                ${detailTextBlock('自評說明', reflection.selfEvaluationReason)}
+                ${detailTextBlock('本月做對的事情', reflection.wins)}
+                ${detailTextBlock('本月待改善事項', reflection.fixes)}
+                ${detailTextBlock('向上回饋', reflection.upwardFeedback)}
+                ${detailTextBlock('本月最想表揚的人跟原因', reflection.teamPraise)}
+                ${detailTextBlock('下月目標', reflection.nextMonthGoal)}
+                ${detailTextBlock('本月客訴或異常事件', data.complaints)}
+                ${detailTextBlock('客訴處理方式', data.complaintHandling)}
+              </div>
+            </div>
+          `;
+        }
+
+        return `
+          ${attendanceHtml}
+          ${overtimeHtml}
+          <div class="card" style="margin-top: 12px;">
+            <strong>行政績效</strong>
+            ${detailMetricGrid([
+              ['進班人數(附表)', metrics.entryStudentCount ?? metrics.newEnrollments ?? 0],
+              ['進班學生與班級說明', metrics.entryStudentNotes || '未填寫'],
+              ['櫃詢次數', metrics.inquiryCount || 0],
+              ['Call 班次數', metrics.callCount || 0],
+              ['櫃詢成功率', `${metrics.conversionRate || 0}%`],
+              ['製作海報', metrics.posterCompleted ? '有' : '沒有'],
+              ['分校掌握度', `${metrics.campusFamiliarityRate || 0}%`],
+              ['自評分數', reflection.selfEvaluation || 0],
+              ['執行力分數', reflection.execution || 0],
+            ])}
+          </div>
+          <div class="card" style="margin-top: 12px;">
+            <strong>基本業務</strong>
+            ${detailMetricGrid([
+              ['學費催繳通知', checklist.overdueNotice ? '準時' : '未完成'],
+              ['週人數統計填報', checklist.weeklyHeadcount ? '準時' : '未完成'],
+              ['月底人數統計填報', checklist.monthEndHeadcount ? '準時' : '未完成'],
+              ['學費袋製作', checklist.tuitionBag ? '準時' : '未完成'],
+            ])}
+          </div>
+          <div class="card" style="margin-top: 12px;">
+            <strong>自評與回饋</strong>
+            <div class="list" style="margin-top: 10px;">
+              ${detailTextBlock('本月覺得自己做對的事', reflection.wins)}
+              ${detailTextBlock('本月需要修正的事', reflection.fixes)}
+              ${detailTextBlock('想向上反應的事 / 個人工作狀態', reflection.upwardFeedback)}
+              ${detailTextBlock('執行力分數說明', reflection.executionReason)}
+              ${detailTextBlock('本月想要特別讚許的團隊夥伴以及原因', reflection.teamPraise)}
+              ${detailTextBlock('下月目標', reflection.nextMonthGoal)}
+            </div>
+          </div>
+        `;
+      }
+
+      function showReviewConfirm(status) {
+        if (!state.detail) return;
+        const note = $('reviewNote') ? $('reviewNote').value.trim() : '';
+        state.pendingReview = { reportId: state.detail.id, status, note };
+        $('reviewConfirmContent').innerHTML = `
+          ${detailMetricGrid([
+            ['填表人', state.detail.userName || ''],
+            ['月報月份', state.detail.month || ''],
+            ['審核結果', labels.status[status] || status],
+            ['主管審核意見', note || '未填寫審核意見'],
+          ])}
+          <div class="card" style="margin-top: 12px;">
+            <strong>確認提醒</strong>
+            <p class="muted" style="line-height:1.7; margin-bottom:0;">若審核意見需要調整，請按「修改審核意見」回到月報詳情；確認無誤後再送出審核。</p>
+          </div>
+        `;
+        setReviewConfirmMessage('');
+        $('reviewConfirmModal').classList.remove('hidden');
+      }
+
+      function hideReviewConfirm() {
+        $('reviewConfirmModal').classList.add('hidden');
+        setReviewConfirmMessage('');
+      }
+
+      function showDashboardReportModal(report) {
+        state.detail = report;
+        $('dashboardReportTitle').textContent = `${report.userName || ''}｜${report.month || ''} 月報`;
+        $('dashboardReportContent').innerHTML = `
+          <div class="list-item">
+            <strong>${escapeHtml(report.userName || '')}</strong>
+            <div>${isPartTimeReport(report) ? '兼任老師' : (labels.role[report.role] || report.role)}｜${labels.status[report.status] || report.status}</div>
+            <div>績效 ${report.scores.performance}｜自評 ${report.scores.selfEvaluation}｜執行 ${report.scores.execution === null ? '不適用' : report.scores.execution}｜總分 ${report.scores.overall}</div>
+          </div>
+          ${renderFullReportContent(report)}
+        `;
+        $('dashboardReportModal').classList.remove('hidden');
+      }
+
+      function hideDashboardReportModal() {
+        $('dashboardReportModal').classList.add('hidden');
+      }
+
+      function renderReports() {
+        const reports = state.reports || [];
+        const branches = Array.from(new Set(reports.map((report) => report.branch || '').filter(Boolean))).sort();
+        const currentBranchValue = $('manageBranchFilter') ? $('manageBranchFilter').value : state.manageBranchFilter;
+        $('manageBranchFilter').innerHTML = ['<option value="">全部分校</option>'].concat(branches.map((branch) => `<option value="${escapeHtml(branch)}">${escapeHtml(branch)}</option>`)).join('');
+        $('manageBranchFilter').value = branches.includes(currentBranchValue) ? currentBranchValue : '';
+        state.manageBranchFilter = $('manageBranchFilter').value;
+        $('manageRoleFilter').value = state.manageRoleFilter || '';
+        const filteredReports = reports
+          .filter((report) => state.manageBranchFilter ? report.branch === state.manageBranchFilter : true)
+          .filter((report) => {
+            if (!state.manageRoleFilter) return true;
+            if (state.manageRoleFilter === 'partTime') return isPartTimeReport(report);
+            if (state.manageRoleFilter === 'teacher') return report.role === 'teacher' && !isPartTimeReport(report);
+            return report.role === state.manageRoleFilter;
+          });
+        $('reportList').innerHTML = filteredReports.map((report) => `
+          <div class="list-item">
+            <strong>${escapeHtml(report.userName)}</strong>
+            <small>${isPartTimeReport(report) ? '兼任老師' : (labels.role[report.role] || report.role)}｜${labels.status[report.status] || report.status}｜${report.month}</small>
+            <div>${escapeHtml(report.branch || '')}</div>
+            <div>總分 ${report.scores.overall} ｜ 更新時間 ${report.updatedAt}</div>
+            <div class="row-actions" style="justify-content:flex-start; margin-top: 10px;">
+              <button class="ghost" data-open-report="${report.id}" type="button">查看</button>
+            </div>
+          </div>
+        `).join('') || '<div class="list-item">目前沒有月報。</div>';
+        document.querySelectorAll('[data-open-report]').forEach((btn) => {
+          btn.onclick = async () => {
+            const reportId = btn.getAttribute('data-open-report');
+            state.detail = null;
+            state.detailError = '';
+            state.detailLoading = true;
+            renderDetail();
+            btn.disabled = true;
+            btn.textContent = '載入中...';
+            try {
+              const report = await call('getReport', localStorage.getItem(tokenKey), reportId);
+              state.detail = report;
+            } catch (error) {
+              state.detailError = error.message || '月報詳情載入失敗，請再試一次。';
+            } finally {
+              state.detailLoading = false;
+              btn.disabled = false;
+              btn.textContent = '查看';
+              renderDetail();
+            }
+          };
+        });
+      }
+
+      function renderDetail() {
+        if (state.detailLoading) {
+          $('detailPanel').innerHTML = `
+            <div class="list-item">
+              <div class="login-loading" style="justify-content:flex-start; margin-top: 0;">
+                <span class="spinner"></span>
+                <span>正在載入月報完整內容，請稍候...</span>
+              </div>
+              <small>系統正在讀取填報明細、審核紀錄與匯出資料。</small>
+            </div>
+          `;
+          return;
+        }
+        if (state.detailError) {
+          $('detailPanel').innerHTML = `
+            <div class="message err" style="display:block;">
+              ${escapeHtml(state.detailError)}
+            </div>
+          `;
+          return;
+        }
+        const report = state.detail;
+        if (!report) {
+          $('detailPanel').innerHTML = '請先選擇一份月報。';
+          return;
+        }
+        const history = (report.reviewHistory || []).slice().reverse().map((item) => `
+          <li class="list-item">
+            <strong>${escapeHtml(item.reviewerName)}</strong>
+            <small>${item.reviewedAt} | ${labels.status[item.status] || item.status}</small>
+            <div>${escapeHtml(item.reviewerNote || '')}</div>
+          </li>
+        `).join('');
+        $('detailPanel').innerHTML = `
+          <div class="list-item">
+            <strong>${escapeHtml(report.userName)}</strong>
+            <div>${labels.role[report.role] || report.role}｜${report.month}｜${labels.status[report.status] || report.status}</div>
+            <div>績效 ${report.scores.performance}｜自評 ${report.scores.selfEvaluation}｜執行 ${report.scores.execution === null ? '不適用' : report.scores.execution}｜總分 ${report.scores.overall}</div>
+          </div>
+          ${renderFullReportContent(report)}
+          <div class="card" style="margin-top: 12px;">
+            <label class="field"><span>審核意見</span><textarea id="reviewNote">${escapeHtml(report.reviewerNote || '')}</textarea></label>
+            <div class="row-actions">
+              <button class="ghost" id="needRevisionBtn" type="button">退回修正</button>
+              <button class="btn" id="reviewBtn" type="button">通過審核</button>
+            </div>
+          </div>
+          <div class="card" style="margin-top: 12px;">
+            <strong>主管審核紀錄</strong>
+            <ul class="list" style="margin-top: 12px;">${history || '<li class="list-item">目前沒有審核紀錄。</li>'}</ul>
+          </div>
+          <div class="card" style="margin-top: 12px;">
+            <strong>匯出檔案</strong>
+            <div class="row-actions" style="justify-content:flex-start; margin-top: 10px;">
+              <button class="ghost" id="exportPdfBtn" type="button">PDF</button>
+              <button class="ghost" id="exportDocBtn" type="button">Word</button>
+            </div>
+          </div>
+        `;
+        $('needRevisionBtn').onclick = () => showReviewConfirm('needs_revision');
+        $('reviewBtn').onclick = () => showReviewConfirm('reviewed');
+        $('exportPdfBtn').onclick = async () => {
+          const result = await call('exportReport', localStorage.getItem(tokenKey), report.id, 'pdf');
+          const downloaded = handlePdfExportResult(result);
+          setMessage(`PDF 已產生並開始下載：${downloaded}`);
+        };
+        $('exportDocBtn').onclick = async () => {
+          const result = await call('exportReport', localStorage.getItem(tokenKey), report.id, 'docx');
+          setMessage(`Word 已準備完成：${result.docUrl}`);
+        };
+      }
+
+      function renderUserAdmin() {
+        const users = (state.bootstrap && Array.isArray(state.bootstrap.users)) ? state.bootstrap.users : [];
+        const selectedUserId = $('userEditorSelect') ? $('userEditorSelect').value : '';
+        const listHtml = users.map((user) => `
+          <tr>
+            <td>${escapeHtml(user.name || '')}</td>
+            <td>${escapeHtml(user.account || '')}</td>
+            <td>${escapeHtml(labels.role[user.role] || user.role || '')}</td>
+            <td>${escapeHtml(user.staffCode || '')}</td>
+            <td>${escapeHtml(user.duty || user.title || '')}</td>
+            <td><span class="truncate-cell" title="${escapeHtml(user.email || '')}">${escapeHtml(user.email || '')}</span></td>
+            <td><span class="truncate-cell" title="${escapeHtml(user.lineTargetId || '')}">${escapeHtml(user.lineTargetId || '')}</span></td>
+            <td>Email ${user.notifyByEmail === false ? '否' : '是'} / LINE ${user.notifyByLine === true ? '是' : '否'} / 接收 ${user.isNotificationReceiver === false ? '否' : '是'}</td>
+            <td>${user.teachingHourlyRate || ''} / ${user.adminHourlyRate || ''}</td>
+            <td>${escapeHtml(user.contractEndDate || '')}</td>
+            <td>${user.mustChangePassword ? '是' : '否'}</td>
+          </tr>
+        `).join('');
+
+        $('userListPanel').innerHTML = `
+          <div class="user-list-shell">
+          <table class="user-list-table">
+            <thead>
+              <tr>
+                <th>姓名</th>
+                <th>帳號</th>
+                <th>角色</th>
+                <th>人員代碼</th>
+                <th>職務</th>
+                <th>Email</th>
+                <th>LINE Target</th>
+                <th>通知設定</th>
+                <th>授課/教務時薪</th>
+                <th>合約到期</th>
+                <th>首次改密碼</th>
+              </tr>
+            </thead>
+            <tbody>
+              ${listHtml || '<tr><td colspan="11">目前沒有使用者資料。</td></tr>'}
+            </tbody>
+          </table>
+          </div>
+        `;
+        renderNotificationLogs();
+
+        $('userEditorSelect').innerHTML = users.map((user) => `<option value="${escapeHtml(user.id)}">${escapeHtml(user.name || user.account || user.id)}｜${escapeHtml(user.account || '')}</option>`).join('');
+        if (users.some((user) => user.id === selectedUserId)) {
+          $('userEditorSelect').value = selectedUserId;
+        } else if (users.length && !$('userEditorSelect').value) {
+          $('userEditorSelect').value = users[0].id;
+        }
+        populateUserEditor();
+      }
+
+      function renderNotificationLogs() {
+        const logs = (state.bootstrap && Array.isArray(state.bootstrap.notificationLogs)) ? state.bootstrap.notificationLogs : [];
+        $('notificationLogsPanel').innerHTML = `
+          <div class="card-soft">
+            <strong>最近通知紀錄</strong>
+            <p class="muted" style="margin:6px 0 10px;">老師送出月報後，系統會記錄 Email / LINE 簽核通知是否寄出成功。</p>
+            <table>
+              <thead>
+                <tr>
+                  <th>時間</th>
+                  <th>月份</th>
+                  <th>填表人</th>
+                  <th>通道</th>
+                  <th>收件人</th>
+                  <th>狀態</th>
+                  <th>說明</th>
+                </tr>
+              </thead>
+              <tbody>
+                ${logs.map((log) => `
+                  <tr>
+                    <td>${escapeHtml(log.createdAt || '')}</td>
+                    <td>${escapeHtml(log.month || '')}</td>
+                    <td>${escapeHtml(log.senderName || '')}</td>
+                    <td>${escapeHtml(labelNotificationChannel(log.channel))}</td>
+                    <td>${escapeHtml(log.target || log.receiverName || '')}</td>
+                    <td>${escapeHtml(labelNotificationStatus(log.status))}</td>
+                    <td>${escapeHtml(log.errorMessage || log.subject || log.message || '')}</td>
+                  </tr>
+                `).join('') || '<tr><td colspan="7">目前沒有通知紀錄。</td></tr>'}
+              </tbody>
+            </table>
+          </div>
+        `;
+      }
+
+      function labelNotificationStatus(status) {
+        return {
+          sent: '已寄出',
+          failed: '寄送失敗',
+          skipped: '未寄出',
+        }[status] || status || '';
+      }
+
+      function labelNotificationChannel(channel) {
+        return {
+          email: 'Email',
+          line: 'LINE',
+        }[channel] || channel || '';
+      }
+
+      function renderPartTimeSettings() {
+        const users = ((state.bootstrap && Array.isArray(state.bootstrap.users)) ? state.bootstrap.users : [])
+          .filter((user) => isPartTimeTeacher(user));
+        const partTimeValue = (user, key, fallback) => {
+          const latest = user.latestPartTimeContract || {};
+          return user[key] || latest[key] || fallback;
+        };
+        const partTimeSourceText = (user) => {
+          const latest = user.latestPartTimeContract || {};
+          if (!latest.contractEndDate) return '尚無上一次紀錄，使用系統預設值';
+          return `上一次紀錄：${latest.month || '未標示月份'}`;
+        };
+        $('partTimeSettingsList').innerHTML = `
+          <table>
+            <thead>
+              <tr>
+                <th>姓名</th>
+                <th>帳號</th>
+                <th>職務</th>
+                <th>授課時薪</th>
+                <th>非教學教務時薪</th>
+                <th>合約到期日</th>
+              </tr>
+            </thead>
+            <tbody>
+              ${users.map((user) => `
+                <tr>
+                  <td>${escapeHtml(user.name || '')}</td>
+                  <td>${escapeHtml(user.account || '')}</td>
+                  <td>${escapeHtml(user.duty || user.title || '')}</td>
+                  <td><input data-parttime-user="${escapeHtml(user.id)}" data-setting="teachingHourlyRate" type="number" min="0" step="1" value="${Number(partTimeValue(user, 'teachingHourlyRate', 750))}"></td>
+                  <td><input data-parttime-user="${escapeHtml(user.id)}" data-setting="adminHourlyRate" type="number" min="0" step="1" value="${Number(partTimeValue(user, 'adminHourlyRate', 350))}"></td>
+                  <td>
+                    <input data-parttime-user="${escapeHtml(user.id)}" data-setting="contractEndDate" type="date" value="${escapeHtml(partTimeValue(user, 'contractEndDate', '2026-04-30'))}">
+                    <small class="muted">${escapeHtml(partTimeSourceText(user))}</small>
+                  </td>
+                </tr>
+              `).join('') || '<tr><td colspan="6">目前沒有兼任老師帳號。</td></tr>'}
+            </tbody>
+          </table>
+        `;
+      }
+
+      function getSelectedEditorUser() {
+        const users = (state.bootstrap && Array.isArray(state.bootstrap.users)) ? state.bootstrap.users : [];
+        const id = $('userEditorSelect').value;
+        return users.find((user) => user.id === id) || null;
+      }
+
+      function populateUserEditor() {
+        const user = getSelectedEditorUser();
+        setTempPasswordNotice('');
+        $('userEditName').value = user ? user.name || '' : '';
+        $('userEditAccount').value = user ? user.account || '' : '';
+        $('userEditRole').value = user ? user.role || 'teacher' : 'teacher';
+        $('userEditStaffCode').value = user ? user.staffCode || '' : '';
+        $('userEditDuty').value = user ? user.duty || user.title || '' : '';
+        $('userEditTeachingRate').value = user ? user.teachingHourlyRate || '' : '';
+        $('userEditAdminRate').value = user ? user.adminHourlyRate || '' : '';
+        $('userEditContractEndDate').value = user ? user.contractEndDate || '' : '';
+        $('userEditBranch').value = user ? user.branch || '' : '';
+        $('userEditEmail').value = user ? user.email || '' : '';
+        $('userEditLineTargetId').value = user ? user.lineTargetId || '' : '';
+        $('userEditNotifyByEmail').checked = user ? user.notifyByEmail !== false : true;
+        $('userEditNotifyByLine').checked = user ? user.notifyByLine === true : false;
+        $('userEditNotificationReceiver').checked = user ? user.isNotificationReceiver !== false : $('userEditRole').value === 'manager';
+        $('userEditPassword').value = '';
+        $('userEditForceChange').checked = user ? Boolean(user.mustChangePassword) : true;
+      }
+
+      function clearUserEditorForNew() {
+        $('userEditorSelect').value = '';
+        $('userEditName').value = '';
+        $('userEditAccount').value = '';
+        $('userEditRole').value = 'teacher';
+        $('userEditStaffCode').value = '';
+        $('userEditDuty').value = '';
+        $('userEditTeachingRate').value = '';
+        $('userEditAdminRate').value = '';
+        $('userEditContractEndDate').value = '';
+        $('userEditBranch').value = state.bootstrap && state.bootstrap.metadata ? state.bootstrap.metadata.branchName || '' : '';
+        $('userEditEmail').value = '';
+        $('userEditLineTargetId').value = '';
+        $('userEditNotifyByEmail').checked = true;
+        $('userEditNotifyByLine').checked = false;
+        $('userEditNotificationReceiver').checked = false;
+        $('userEditPassword').value = '';
+        $('userEditForceChange').checked = true;
+        setTempPasswordNotice('');
+        setResetMessage('');
+      }
+
+      async function resetSelectedUserPassword(nextPassword, options = {}) {
+        const user = getSelectedEditorUser();
+        if (!user) {
+          throw new Error('請先選擇要重設密碼的帳號');
+        }
+        const password = String(nextPassword || '').trim();
+        if (password.length < 6) {
+          throw new Error('新密碼至少需要 6 碼');
+        }
+        const token = localStorage.getItem(tokenKey);
+        if (!token) {
+          throw new Error('請先登入');
+        }
+        const forceMustChangePassword = options.forceMustChangePassword === undefined
+          ? $('userEditForceChange').checked
+          : options.forceMustChangePassword;
+        const updatedUser = await call('resetUserPassword', token, user.id, password, forceMustChangePassword);
+        return updatedUser;
+      }
+
+      async function saveCurrent(status) {
+        try {
+          state.report = prepareReportForSave(status);
+          state.report = await call('saveReport', localStorage.getItem(tokenKey), state.report);
+          const notificationText = status === 'draft' || !state.report.notificationSummary
+            ? ''
+            : ` ${state.report.notificationSummary.message || ''}`;
+          setMessage(status === 'draft' ? '草稿已儲存。' : `月報已送出。${notificationText}`);
+          await refreshAll();
+        } catch (error) {
+          setMessage(error.message || 'Save failed', 'err');
+        }
+      }
+
+      async function refreshAll() {
+        const token = localStorage.getItem(tokenKey);
+        const [bootstrap, report, reports] = await Promise.all([
+          call('bootstrap', token, state.month),
+          isManager() ? Promise.resolve(null) : call('getCurrentReport', token, currentUser().id, state.month),
+          call('listReports', token, { month: state.month, role: '', status: '', search: '' }),
+        ]);
+        state.bootstrap = bootstrap;
+        state.report = report;
+        state.reports = reports;
+        renderHeader();
+        renderNav();
+        renderMetricCards();
+        renderDashboardLists();
+        if (!isManager()) {
+          renderFill();
+        }
+        renderReports();
+        renderDetail();
+        if (isManager()) {
+          renderUserAdmin();
+          renderPartTimeSettings();
+        }
+        loadReferenceDashboardInBackground(token);
+      }
+
+      async function loadReferenceDashboardInBackground(token) {
+        if (!state.bootstrap) return;
+        try {
+          const referenceDashboard = await call('getReferenceDashboard', token, state.month);
+          state.bootstrap.referenceDashboard = referenceDashboard;
+          renderReferenceDashboard();
+        } catch (error) {
+          state.bootstrap.referenceDashboard = null;
+          renderReferenceDashboard();
+        }
+      }
+
+      async function loadAppForSession(token, user) {
+        state.user = user;
+        state.mustChangePassword = Boolean(user && user.mustChangePassword);
+        state.view = user.role === 'manager' ? 'manage' : 'fill';
+        if (state.mustChangePassword) {
+          showApp();
+          state.bootstrap = null;
+          state.report = null;
+          state.reports = [];
+          state.detail = null;
+          state.detailLoading = false;
+          state.detailError = '';
+          renderHeader();
+          renderNav();
+          showPasswordModal();
+          return;
+        }
+
+        state.view = user.role === 'manager' ? 'manage' : 'fill';
+        showApp();
+        hidePasswordModal();
+        renderHeader();
+        renderNav();
+        renderLoadingState('登入成功，正在載入月報資料...');
+        const [bootstrap, report, reports] = await Promise.all([
+          call('bootstrap', token, state.month),
+          user.role === 'manager' ? Promise.resolve(null) : call('getCurrentReport', token, user.id, state.month),
+          call('listReports', token, { month: state.month, role: '', status: '', search: '' }),
+        ]);
+        state.bootstrap = bootstrap;
+        state.report = report;
+        state.reports = reports;
+        state.detail = null;
+        state.detailLoading = false;
+        state.detailError = '';
+        renderHeader();
+        renderNav();
+        renderMetricCards();
+        renderDashboardLists();
+        if (!isManager()) {
+          renderFill();
+        }
+        renderReports();
+        renderDetail();
+        if (isManager()) {
+          renderUserAdmin();
+          renderPartTimeSettings();
+        }
+        setMessage('資料已載入完成。');
+        loadReferenceDashboardInBackground(token);
+      }
+
+      function bindButtons() {
+        $('loginForm').onsubmit = async (event) => {
+          event.preventDefault();
+          try {
+            setLoginMessage('');
+            setLoginLoading(true);
+            const session = await call('login', $('account').value.trim(), $('password').value);
+            if (!session || !session.token || !session.user) {
+              throw new Error('登入回傳異常，請再試一次');
+            }
+            localStorage.setItem(tokenKey, session.token);
+            state.month = new Date().toISOString().slice(0, 7);
+            await loadAppForSession(session.token, session.user);
+          } catch (error) {
+            setLoginMessage(error.message || 'Login failed');
+          } finally {
+            setLoginLoading(false);
+          }
+        };
+
+        $('passwordForm').onsubmit = async (event) => {
+          event.preventDefault();
+          setPasswordLoading(true);
+          try {
+            setPasswordMessage('');
+            const token = localStorage.getItem(tokenKey);
+            const currentPassword = $('currentPassword').value;
+            const nextPassword = $('newPassword').value;
+            const confirmPassword = $('confirmPassword').value;
+
+            if (!token) {
+              throw new Error('請先重新登入');
+            }
+            if (!nextPassword || nextPassword.length < 6) {
+              throw new Error('新密碼至少需要 6 碼');
+            }
+            if (nextPassword !== confirmPassword) {
+              throw new Error('兩次輸入的新密碼不一致');
+            }
+
+            const result = await call('updatePassword', token, currentPassword, nextPassword);
+            if (!result || !result.user) {
+              throw new Error('密碼更新回傳異常，請再試一次');
+            }
+            state.user = result.user;
+            state.mustChangePassword = false;
+            $('currentPassword').value = '';
+            $('newPassword').value = '';
+            $('confirmPassword').value = '';
+            await loadAppForSession(token, result.user);
+            hidePasswordModal();
+            setMessage('密碼已更新，歡迎進入系統。');
+          } catch (error) {
+            setPasswordMessage(error.message || '密碼更新失敗');
+          } finally {
+            setPasswordLoading(false);
+          }
+        };
+
+        $('editReviewNoteBtn').onclick = () => {
+          hideReviewConfirm();
+        };
+
+        $('confirmReviewBtn').onclick = async () => {
+          try {
+            setReviewConfirmMessage('');
+            if (!state.pendingReview) {
+              throw new Error('找不到待送出的審核資料');
+            }
+            $('confirmReviewBtn').disabled = true;
+            $('confirmReviewBtn').textContent = '審核送出中...';
+            state.detail = await call(
+              'reviewReport',
+              localStorage.getItem(tokenKey),
+              state.pendingReview.reportId,
+              state.pendingReview.status,
+              state.pendingReview.note,
+            );
+            const doneText = state.pendingReview.status === 'reviewed' ? '月報已通過審核。' : '月報已退回修正。';
+            hideReviewConfirm();
+            state.pendingReview = null;
+            setMessage(doneText);
+            await refreshAll();
+          } catch (error) {
+            setReviewConfirmMessage(error.message || '審核送出失敗', 'err');
+          } finally {
+            $('confirmReviewBtn').disabled = false;
+            $('confirmReviewBtn').textContent = '確認送出審核';
+          }
+        };
+
+        $('logoutBtn').onclick = async () => {
+          const token = localStorage.getItem(tokenKey);
+          if (token) {
+            await call('logout', token);
+          }
+          localStorage.removeItem(tokenKey);
+          state.user = null;
+          state.bootstrap = null;
+          state.report = null;
+          state.reports = [];
+          state.detail = null;
+          state.detailLoading = false;
+          state.detailError = '';
+          state.mustChangePassword = false;
+          showLogin();
+        };
+
+        $('userEditorSelect').onchange = () => {
+          populateUserEditor();
+          setResetMessage('');
+        };
+
+        $('userEditRole').onchange = () => {
+          if ($('userEditRole').value === 'manager') {
+            $('userEditNotificationReceiver').checked = true;
+            $('userEditNotifyByEmail').checked = true;
+          }
+        };
+
+        $('newUserBtn').onclick = () => {
+          clearUserEditorForNew();
+        };
+
+        $('resetPasswordBtn').onclick = async () => {
+          try {
+            setResetMessage('');
+            setTempPasswordNotice('');
+            setUserAdminLoading(true, '正在重設密碼，請稍候...');
+            const user = getSelectedEditorUser();
+            await resetSelectedUserPassword($('userEditPassword').value);
+            $('userEditPassword').value = '';
+            await refreshAll();
+            setResetMessage(`${user.name || user.account} 的密碼已重設完成，請通知老師使用新密碼登入。`);
+          } catch (error) {
+            setResetMessage(error.message || '密碼重設失敗', 'err');
+          } finally {
+            setUserAdminLoading(false);
+          }
+        };
+
+        $('generateTempPasswordBtn').onclick = async () => {
+          const tempPassword = generateTemporaryPassword();
+          try {
+            setResetMessage('');
+            setTempPasswordNotice('');
+            setUserAdminLoading(true, '正在產生並寫入臨時密碼，請稍候...');
+            const user = getSelectedEditorUser();
+            await resetSelectedUserPassword(tempPassword, { forceMustChangePassword: true });
+            $('userEditPassword').value = '';
+            $('userEditForceChange').checked = true;
+            await refreshAll();
+            setResetMessage(`${user.name || user.account} 的臨時密碼已產生並寫入完成。`);
+            setTempPasswordNotice(`
+              <strong>臨時密碼：</strong>
+              <span style="font-size:18px; letter-spacing:.08em;">${escapeHtml(tempPassword)}</span>
+              <div class="muted" style="margin-top:6px;">這組密碼只在本次畫面顯示，請先提供給老師；老師下次登入後會被要求改密碼。</div>
+            `);
+          } catch (error) {
+            setResetMessage(error.message || '臨時密碼產生失敗', 'err');
+          } finally {
+            setUserAdminLoading(false);
+          }
+        };
+
+        $('saveUserBtn').onclick = async () => {
+          try {
+            setResetMessage('');
+            setTempPasswordNotice('');
+            setUserAdminLoading(true, '正在儲存使用者資料，請稍候...');
+            const token = localStorage.getItem(tokenKey);
+            if (!token) {
+              throw new Error('請先登入');
+            }
+            const payload = {
+              id: $('userEditorSelect').value || '',
+              name: $('userEditName').value,
+              account: $('userEditAccount').value,
+              role: $('userEditRole').value,
+              staffCode: $('userEditStaffCode').value,
+              duty: $('userEditDuty').value,
+              title: $('userEditDuty').value,
+              teachingHourlyRate: Number($('userEditTeachingRate').value || 0),
+              adminHourlyRate: Number($('userEditAdminRate').value || 0),
+              contractEndDate: $('userEditContractEndDate').value,
+              branch: $('userEditBranch').value,
+              email: $('userEditEmail').value,
+              lineTargetId: $('userEditLineTargetId').value,
+              notifyByEmail: $('userEditNotifyByEmail').checked,
+              notifyByLine: $('userEditNotifyByLine').checked,
+              isNotificationReceiver: $('userEditNotificationReceiver').checked,
+              password: $('userEditPassword').value,
+              mustChangePassword: $('userEditForceChange').checked,
+            };
+
+            await call('upsertUser', token, payload);
+            $('userEditPassword').value = '';
+            await refreshAll();
+            setResetMessage('使用者資料已儲存完成。');
+          } catch (error) {
+            setResetMessage(error.message || '儲存失敗', 'err');
+          } finally {
+            setUserAdminLoading(false);
+          }
+        };
+
+        $('deleteUserBtn').onclick = async () => {
+          try {
+            setResetMessage('');
+            setUserAdminLoading(true, '正在刪除使用者與相關月報，請稍候...');
+            const token = localStorage.getItem(tokenKey);
+            const user = getSelectedEditorUser();
+            if (!token) {
+              throw new Error('請先登入');
+            }
+            if (!user) {
+              throw new Error('請先選擇要刪除的使用者');
+            }
+            if (!confirm(`確定刪除 ${user.name || user.account}？這會一併刪除此使用者相關月報資料。`)) {
+              return;
+            }
+            const result = await call('deleteUser', token, user.id, true);
+            await refreshAll();
+            setResetMessage(`已刪除使用者，並刪除 ${result.deletedReports || 0} 筆相關月報。`);
+          } catch (error) {
+            setResetMessage(error.message || '刪除失敗', 'err');
+          } finally {
+            setUserAdminLoading(false);
+          }
+        };
+
+        $('savePartTimeSettingsBtn').onclick = async () => {
+          try {
+            setPartTimeSettingsMessage('');
+            setPartTimeSettingsLoading(true);
+            const token = localStorage.getItem(tokenKey);
+            if (!token) throw new Error('請先登入');
+            const users = ((state.bootstrap && Array.isArray(state.bootstrap.users)) ? state.bootstrap.users : [])
+              .filter((user) => isPartTimeTeacher(user));
+            const grouped = {};
+            document.querySelectorAll('[data-parttime-user]').forEach((input) => {
+              const id = input.getAttribute('data-parttime-user');
+              const setting = input.getAttribute('data-setting');
+              grouped[id] = grouped[id] || {};
+              grouped[id][setting] = input.type === 'number' ? Number(input.value || 0) : input.value;
+            });
+            for (const user of users) {
+              const settings = grouped[user.id] || {};
+              await call('upsertUser', token, {
+                ...user,
+                teachingHourlyRate: Number(settings.teachingHourlyRate || user.teachingHourlyRate || 750),
+                adminHourlyRate: Number(settings.adminHourlyRate || user.adminHourlyRate || 350),
+                contractEndDate: settings.contractEndDate || user.contractEndDate || '2026-04-30',
+                password: '',
+                mustChangePassword: Boolean(user.mustChangePassword),
+              });
+            }
+            await refreshAll();
+            setPartTimeSettingsMessage(`已儲存 ${users.length} 位兼任老師參數。`);
+          } catch (error) {
+            setPartTimeSettingsMessage(error.message || '兼任老師參數儲存失敗', 'err');
+          } finally {
+            setPartTimeSettingsLoading(false);
+          }
+        };
+
+        $('monthPicker').onchange = async (event) => {
+          state.month = event.target.value;
+          await refreshAll();
+        };
+
+        $('manageBranchFilter').onchange = (event) => {
+          state.manageBranchFilter = event.target.value;
+          renderReports();
+        };
+
+        $('manageRoleFilter').onchange = (event) => {
+          state.manageRoleFilter = event.target.value;
+          renderReports();
+        };
+
+        document.querySelectorAll('[data-view]').forEach((btn) => {
+          btn.onclick = () => {
+            state.view = btn.getAttribute('data-view');
+            if (isManager() && state.view === 'fill') {
+              state.view = 'dashboard';
+            }
+            renderNav();
+            renderHeader();
+          };
+        });
+
+        $('addClassBtn').onclick = () => {
+          state.report.data.classAssignments.push({ id: `class-${Date.now()}`, className: '', level: '', courseType: 'regular', studentCount: 0 });
+          renderFill();
+        };
+        $('addAttendanceBtn').onclick = () => {
+          state.report.data.attendanceRecords.push({ id: `att-${Date.now()}`, category: 'sick', date: '', days: 0, hours: 0, note: '' });
+          renderFill();
+        };
+        $('addTeachingBtn').onclick = () => {
+          state.report.data.teachingRecords.push({ id: `work-${Date.now()}`, category: 'student_makeup', date: '', className: '', level: '', hours: 0, note: '' });
+          renderFill();
+        };
+        $('addTeacherOvertimeBtn').onclick = () => {
+          state.report.data.overtimeRecords = Array.isArray(state.report.data.overtimeRecords) ? state.report.data.overtimeRecords : [];
+          state.report.data.overtimeRecords.push({ id: `ot-${Date.now()}`, category: 'weekday', date: '', hours: 0, note: '' });
+          renderFill();
+        };
+        $('addAdminAttendanceBtn').onclick = () => {
+          state.report.data.attendanceRecords.push({ id: `att-${Date.now()}`, category: 'sick', date: '', days: 0, hours: 0, note: '' });
+          renderFill();
+        };
+        $('addAdminOvertimeBtn').onclick = () => {
+          state.report.data.overtimeRecords = Array.isArray(state.report.data.overtimeRecords) ? state.report.data.overtimeRecords : [];
+          state.report.data.overtimeRecords.push({ id: `ot-${Date.now()}`, category: 'weekday', date: '', hours: 0, note: '' });
+          renderFill();
+        };
+        $('addPartTimeRecordBtn').onclick = () => {
+          state.report.data.partTimeRecords.push({ id: `parttime-${Date.now()}`, category: 'teaching', date: '', weekday: '', description: '', startTime: '', endTime: '', hours: 0 });
+          renderFill();
+        };
+        $('addAssistantTimesheetBtn').onclick = () => {
+          state.report.data.assistantTimesheet = state.report.data.assistantTimesheet || {};
+          state.report.data.assistantTimesheet.records = Array.isArray(state.report.data.assistantTimesheet.records) ? state.report.data.assistantTimesheet.records : [];
+          state.report.data.assistantTimesheet.records.push({ id: `assistant-${Date.now()}`, date: '', weekday: '', description: '', timeRange: '', hours: 0 });
+          renderFill();
+        };
+        $('partTimeEditBtn').onclick = () => setMessage('已切換為可修改狀態，請直接調整欄位後按「確認填報儲存」。');
+        $('partTimeSaveBtn').onclick = () => saveCurrent('submitted');
+        $('partTimePdfBtn').onclick = async () => {
+          try {
+            state.report = prepareReportForSave('draft');
+            state.report = await call('saveReport', localStorage.getItem(tokenKey), state.report);
+            const result = await call('exportReport', localStorage.getItem(tokenKey), state.report.id, 'pdf');
+            const downloaded = handlePdfExportResult(result);
+            setMessage(`PDF 已產生並開始下載：${downloaded}`);
+          } catch (error) {
+            setMessage(error.message || 'PDF 產生失敗', 'err');
+          }
+        };
+        $('closeDashboardReportBtn').onclick = () => hideDashboardReportModal();
+        $('dashboardReviewJumpBtn').onclick = () => {
+          hideDashboardReportModal();
+          state.view = 'manage';
+          renderNav();
+          renderHeader();
+          renderDetail();
+        };
+        $('saveDraftBtn').onclick = () => saveCurrent('draft');
+        $('submitBtn').onclick = () => showSubmitConfirm();
+        $('continueEditBtn').onclick = () => hideSubmitConfirm();
+        $('confirmSubmitBtn').onclick = async () => {
+          hideSubmitConfirm();
+          await saveCurrent('submitted');
+        };
+        $('confirmPdfBtn').onclick = async () => {
+          try {
+            setSubmitConfirmMessage('正在產生 PDF，請稍候...', 'ok');
+            state.report = prepareReportForSave('draft');
+            state.report = await call('saveReport', localStorage.getItem(tokenKey), state.report);
+            const result = await call('exportReport', localStorage.getItem(tokenKey), state.report.id, 'pdf');
+            const downloaded = handlePdfExportResult(result);
+            setSubmitConfirmMessage(`PDF 已產生並開始下載：${downloaded}`, 'ok');
+          } catch (error) {
+            setSubmitConfirmMessage(error.message || 'PDF 產生失敗', 'err');
+          }
+        };
+      }
+
+
+      (function initPreview() {
+        bindButtons();
+        const role = new URLSearchParams(location.search).get('role') || 'tutor';
+        const isAdminPreview = role === 'admin';
+        const user = isAdminPreview
+          ? { id:'preview-admin', name:'Crystal', role:'admin', staffCode:'P568-A01', duty:'????', title:'????', branch:'????-??????' }
+          : { id:'preview-tutor', name:'Ruby', role:'tutor', staffCode:'P568-T31', duty:'????', title:'????', branch:'????-??????', defaultClassAssignments:[{ id:'c1', className:'??A?', level:'G3-G4', studentCount:8 }] };
+        state.user = user;
+        state.month = '2026-07';
+        state.view = 'fill';
+        state.bootstrap = {
+          metadata: { systemName:'??????', schoolTitle:'??????????', branchName:'????-??????' },
+          dashboard: { metrics: { totalUsers: 1, submittedCount: 0, pendingCount: 1, completionRate: 0 } },
+          referenceDashboard: { weeklyRecords:[{ startDate:'2026-07-01', endDate:'2026-07-07' }], weeklyClasses:[{ recordId:'2026-W27', classCount:12 }], teacherLoads:[{ teacher:user.name, classCount:1, studentCount:8 }] },
+          users:[user], notificationLogs:[], permissionMatrix:[],
+        };
+        state.report = {
+          id:'preview-report', userId:user.id, userName:user.name, role:user.role, branch:user.branch, month:'2026-07', status:'draft', updatedAt:'2026-07-05', reviewerNote:'', reviewHistory:[],
+          scores: { performance: 8, selfEvaluation: 8, execution: isAdminPreview ? 8 : null, overall: 8 },
+          data: isAdminPreview ? {
+            attendanceRecords:[{ id:'att-1', category:'personal', date:'2026-07-08', days:0, hours:0, note:'??????????? 0' }],
+            overtimeRecords:[{ id:'ot-1', category:'weekday', date:'2026-07-12', hours:2, note:'??????????????' }],
+            performanceMetrics:{ inquiryCount:6, callCount:8, conversionRate:75, posterCompleted:true, campusFamiliarityRate:85, entryStudentCount:2, entryStudentNotes:'??? / ESL A1', formChecklist:{ overdueNotice:true, weeklyHeadcount:true, monthEndHeadcount:true, tuitionBag:true } },
+            reflection:{ selfEvaluation:8, execution:8, executionReason:'????', wins:'1. ??????', fixes:'1. ????', upwardFeedback:'?', teamPraise:'??????', nextMonthGoal:'1. ??????' },
+          } : {
+            classAssignments:[{ id:'c1', className:'??A?', level:'G3-G4', studentCount:8 }],
+            attendanceRecords:[{ id:'att-1', category:'sick', date:'2026-07-03', days:0, hours:0, note:'????????????? 0' }],
+            teachingRecords:[{ id:'teach-1', category:'student_makeup', date:'2026-07-10', className:'??A?', level:'G3-G4', hours:1, note:'???????' }],
+            overtimeRecords:[{ id:'ot-1', category:'holiday', date:'2026-07-13', hours:3, note:'????????????' }],
+            performanceMetrics:{ trialStudents:0, convertedStudents:0, gradeTestStudents:0, homeworkErrorRate:0, phoneSupportSuccessRate:0, inquiryStudentCount:0, unavoidableLosses:0, unavoidableLossNotes:'', avoidableLosses:0, avoidableLossNotes:'' },
+            reflection:{ selfEvaluation:8, selfEvaluationReason:'??????????', wins:'1. ??????', fixes:'1. ????', upwardFeedback:'?', teamPraise:'??????', nextMonthGoal:'1. ??????' }, complaints:'?', complaintHandling:'????',
+          },
+        };
+        showApp();
+        hidePasswordModal();
+        renderHeader();
+        renderNav();
+        renderFill();
+        document.body.classList.add('screenshot-preview');
+      })();
+
+    </script>
+  </body>
+</html>

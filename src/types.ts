@@ -211,6 +211,62 @@ export interface DashboardData {
   leaderboard: LeaderboardItem[];
 }
 
+export type StudentMovementType = 'insert' | 'transfer_in' | 'transfer_out' | 'loss' | 'trial';
+export type StudentMovementStatus = 'confirmed' | 'pending';
+
+export interface StudentMovementReminderItem {
+  id: string;
+  studentName: string;
+  movementType: StudentMovementType;
+  movementLabel: string;
+  rawActionLabel: string;
+  status: StudentMovementStatus;
+  statusLabel: string;
+  eventDate: string | null;
+  eventDateLabel: string;
+  daysUntil: number | null;
+  className: string;
+  sourceRow: number;
+  sourceNote: string;
+  sourceWeekStart: string;
+  sourceWeekEnd: string;
+  sourceUpdatedAt: string;
+}
+
+export interface StudentMovementDigestSource {
+  spreadsheetId: string;
+  spreadsheetTitle: string;
+  spreadsheetUrl: string;
+  sheetName: string;
+  snapshotRecordId: string;
+  snapshotWeekStart: string;
+  snapshotWeekEnd: string;
+  sourceUpdatedAt: string;
+  capturedAt: string;
+  notes: string;
+  rowCount: number;
+}
+
+export interface StudentMovementDigestSummary {
+  totalUpcoming: number;
+  totalPendingWithoutDate: number;
+  insertCount: number;
+  transferInCount: number;
+  transferOutCount: number;
+  lossCount: number;
+  trialCount: number;
+}
+
+export interface StudentMovementDigest {
+  windowStart: string;
+  windowEnd: string;
+  generatedAt: string;
+  source: StudentMovementDigestSource;
+  summary: StudentMovementDigestSummary;
+  upcoming: StudentMovementReminderItem[];
+  undatedPending: StudentMovementReminderItem[];
+}
+
 export interface AuthSession {
   token: string;
   user: User;
@@ -226,6 +282,7 @@ export interface BootstrapData {
   roles: Role[];
   statuses: ReportStatus[];
   dashboard: DashboardData;
+  studentMovementDigest: StudentMovementDigest;
   recentReports: MonthlyReport[];
 }
 
