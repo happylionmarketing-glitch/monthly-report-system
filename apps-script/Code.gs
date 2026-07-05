@@ -698,10 +698,14 @@ function saveReport(token, payload) {
     throw new Error('你只能儲存自己的月報');
   }
 
-  const month = normalizeMonthKey_(payload.month || currentMonth_());
   const now = new Date().toISOString();
+  const isDraftSave = payload.status === 'draft';
+  const month = isDraftSave
+    ? normalizeMonthKey_(payload.month || currentMonth_())
+    : inferReportMonthBySubmittedAt_(new Date(now));
   const existingIndex = state.reports.findIndex((item) => item.userId === userId && normalizeMonthKey_(item.month) === month);
   const existing = existingIndex >= 0 ? state.reports[existingIndex] : null;
+  const submissionHistory = buildSubmissionHistory_(existing, payload, targetUser, session.user, now);
   const normalizedPayload = JSON.parse(JSON.stringify(payload || {}));
   if (targetUser.role === 'admin') {
     normalizedPayload.data = normalizedPayload.data || {};
@@ -724,11 +728,12 @@ function saveReport(token, payload) {
     month,
     branch: String(payload.branch || targetUser.branch || META.branchName),
     updatedAt: now,
-    submittedAt: payload.status === 'draft'
+    submittedAt: isDraftSave
       ? existing?.submittedAt || null
-      : existing?.submittedAt || now,
+      : now,
     reviewHistory: Array.isArray(payload.reviewHistory) ? payload.reviewHistory : existing?.reviewHistory || [],
-    reviewerNote: String(payload.reviewerNote || ''),
+    submissionHistory,
+    reviewerNote: String(payload.reviewerNote || existing?.reviewerNote || ''),
   }, state.users);
   const shouldNotifySubmission = shouldNotifyReportSubmission_(existing, nextReport);
 
@@ -841,6 +846,16 @@ function currentMonth_() {
   return Utilities.formatDate(new Date(), 'Asia/Taipei', 'yyyy-MM');
 }
 
+function inferReportMonthBySubmittedAt_(date) {
+  const submittedAt = date instanceof Date && !Number.isNaN(date.getTime()) ? date : new Date();
+  const day = Number(Utilities.formatDate(submittedAt, 'Asia/Taipei', 'dd'));
+  const submittedMonth = Utilities.formatDate(submittedAt, 'Asia/Taipei', 'yyyy-MM');
+  if (day <= 10) {
+    return previousMonthKey_(submittedMonth);
+  }
+  return submittedMonth;
+}
+
 function previousMonthKey_(month) {
   const [year, monthNumber] = normalizeMonthKey_(month || currentMonth_()).split('-').map(Number);
   if (!year || !monthNumber) {
@@ -859,6 +874,39 @@ function normalizeMonthKey_(value) {
     return `${matched[1]}-${String(Number(matched[2])).padStart(2, '0')}`;
   }
   return text.slice(0, 7);
+}
+
+function buildSubmissionHistory_(existing, payload, targetUser, actorUser, submittedAt) {
+  const existingHistory = existing && Array.isArray(existing.submissionHistory)
+    ? existing.submissionHistory.slice()
+    : [];
+  const payloadHistory = payload && Array.isArray(payload.submissionHistory)
+    ? payload.submissionHistory
+    : [];
+  const history = existingHistory.length ? existingHistory : payloadHistory.slice();
+  if (!payload || payload.status === 'draft') {
+    return history;
+  }
+
+  const action = existing && existing.status === 'needs_revision'
+    ? 'resubmitted_after_revision'
+    : history.length
+      ? 'resubmitted'
+      : 'submitted';
+
+  history.push({
+    id: Utilities.getUuid(),
+    action,
+    userId: targetUser.id,
+    userName: targetUser.name || targetUser.account || targetUser.id,
+    actorId: actorUser.id,
+    actorName: actorUser.name || actorUser.account || actorUser.id,
+    submittedAt,
+    previousStatus: existing ? existing.status : '',
+    month: inferReportMonthBySubmittedAt_(new Date(submittedAt)),
+  });
+
+  return history;
 }
 
 function isPartTimeUser_(user) {
@@ -1122,7 +1170,7 @@ function setupDatabase_(spreadsheet) {
   ]);
 
   replaceTable_(reportsSheet, [
-    'id', 'userId', 'role', 'month', 'branch', 'status', 'updatedAt', 'submittedAt', 'reviewerNote', 'reviewHistoryJson', 'dataJson', 'scoresJson',
+    'id', 'userId', 'role', 'month', 'branch', 'status', 'updatedAt', 'submittedAt', 'reviewerNote', 'reviewHistoryJson', 'submissionHistoryJson', 'dataJson', 'scoresJson',
   ], []);
   replaceTable_(notificationLogsSheet, NOTIFICATION_LOG_HEADERS, []);
 }
@@ -1144,7 +1192,7 @@ function setupMissingSheets_(spreadsheet) {
   };
 
   ensure('Users', USER_HEADERS);
-  ensure('Reports', ['id', 'userId', 'role', 'month', 'branch', 'status', 'updatedAt', 'submittedAt', 'reviewerNote', 'reviewHistoryJson', 'dataJson', 'scoresJson']);
+  ensure('Reports', ['id', 'userId', 'role', 'month', 'branch', 'status', 'updatedAt', 'submittedAt', 'reviewerNote', 'reviewHistoryJson', 'submissionHistoryJson', 'dataJson', 'scoresJson']);
   ensure('NotificationLogs', NOTIFICATION_LOG_HEADERS);
   ensure('Settings', ['key', 'value']);
   ensure('Reference_WeeklyRecords', []);
@@ -1274,6 +1322,7 @@ function loadState_() {
     submittedAt: row.submittedAt || null,
     reviewerNote: row.reviewerNote || '',
     reviewHistory: parseJson_(row.reviewHistoryJson, []),
+    submissionHistory: parseJson_(row.submissionHistoryJson, []),
     data: parseJson_(row.dataJson, {}),
     scores: parseJson_(row.scoresJson, { performance: 0, selfEvaluation: 0, execution: null, overall: 0 }),
   }, users));
@@ -1461,7 +1510,7 @@ function saveState_(state) {
     ['schoolTitle', state.metadata.schoolTitle],
   ]);
 
-  replaceTable_(reportsSheet, ['id', 'userId', 'role', 'month', 'branch', 'status', 'updatedAt', 'submittedAt', 'reviewerNote', 'reviewHistoryJson', 'dataJson', 'scoresJson'], state.reports.map((report) => [
+  replaceTable_(reportsSheet, ['id', 'userId', 'role', 'month', 'branch', 'status', 'updatedAt', 'submittedAt', 'reviewerNote', 'reviewHistoryJson', 'submissionHistoryJson', 'dataJson', 'scoresJson'], state.reports.map((report) => [
     report.id,
     report.userId,
     report.role,
@@ -1472,6 +1521,7 @@ function saveState_(state) {
     report.submittedAt || '',
     report.reviewerNote || '',
     JSON.stringify(report.reviewHistory || []),
+    JSON.stringify(report.submissionHistory || []),
     JSON.stringify(report.data || {}),
     JSON.stringify(report.scores || {}),
   ]));
@@ -2615,6 +2665,7 @@ function normalizeReport_(report, users) {
   const output = JSON.parse(JSON.stringify(report || {}));
   output.data = output.data || {};
   output.reviewHistory = Array.isArray(output.reviewHistory) ? output.reviewHistory : [];
+  output.submissionHistory = Array.isArray(output.submissionHistory) ? output.submissionHistory : [];
   output.scores = calculateReportScores_(output, users);
   return output;
 }
@@ -2809,6 +2860,7 @@ function createBlankReport_(user, month, previousReport) {
     submittedAt: null,
     reviewerNote: '',
     reviewHistory: [],
+    submissionHistory: [],
   };
 
   if (isAssistantUser_(user)) {
@@ -3065,6 +3117,14 @@ function labelStatus_(value) {
   }[value] || value;
 }
 
+function labelSubmissionAction_(value) {
+  return {
+    submitted: '首次送出',
+    resubmitted: '重新送出',
+    resubmitted_after_revision: '退回後重新送出',
+  }[value] || value;
+}
+
 function getUserName_(users, userId) {
   const user = users.find((item) => item.id === userId);
   return user ? user.name : '';
@@ -3305,6 +3365,15 @@ function buildReportPdfHtml_(report, roleName) {
     ${pdfTextHtml_('下月目標', reflection.nextMonthGoal)}
   ` : '';
 
+  const submissionRows = (report.submissionHistory || []).slice().reverse().map((item) => `
+    <tr>
+      <td>${escapeHtml_(item.submittedAt || '')}</td>
+      <td>${escapeHtml_(item.userName || report.userName || '')}</td>
+      <td>${escapeHtml_(labelSubmissionAction_(item.action || 'submitted'))}</td>
+      <td>${escapeHtml_(labelStatus_(item.previousStatus || ''))}</td>
+    </tr>
+  `).join('') || '<tr><td colspan="4">目前沒有重新送出紀錄。</td></tr>';
+
   return `
     <!doctype html>
     <html>
@@ -3344,6 +3413,11 @@ function buildReportPdfHtml_(report, roleName) {
         ${assistantBody}
         ${teacherBody}
         ${adminBody}
+        <h2>送出與退回後重新送出紀錄</h2>
+        <table>
+          <tr><th>時間</th><th>送出人</th><th>動作</th><th>送出前狀態</th></tr>
+          ${submissionRows}
+        </table>
         <h2>主管審核紀錄</h2>
         <table>
           <tr><th>時間</th><th>主管</th><th>狀態</th><th>意見</th></tr>

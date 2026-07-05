@@ -57,6 +57,7 @@ import type {
   ReportFilters,
   ReportStatus,
   ReviewHistoryEntry,
+  SubmissionHistoryEntry,
   StudentMovementDigest,
   StudentMovementReminderItem,
   StudentMovementType,
@@ -66,7 +67,11 @@ import type {
 } from './types';
 
 function currentMonthValue() {
-  return new Date().toISOString().slice(0, 7);
+  const localDate = new Date();
+  if (localDate.getDate() <= 10) {
+    localDate.setMonth(localDate.getMonth() - 1);
+  }
+  return `${localDate.getFullYear()}-${String(localDate.getMonth() + 1).padStart(2, '0')}`;
 }
 
 function formatDateTime(value: string | null) {
@@ -140,6 +145,12 @@ function scoreLabel(value: number | null) {
 
   return value.toFixed(1);
 }
+
+const submissionActionLabels: Record<SubmissionHistoryEntry['action'], string> = {
+  submitted: '首次送出',
+  resubmitted: '重新送出',
+  resubmitted_after_revision: '退回後重新送出',
+};
 
 function downloadReport(reportId: string, format: 'pdf' | 'docx') {
   const url = `/api/reports/${reportId}/export?format=${format}`;
@@ -640,6 +651,7 @@ function App() {
               </div>
 
               <ReviewHistoryPanel history={currentReport.reviewHistory ?? []} />
+              <SubmissionHistoryPanel history={currentReport.submissionHistory ?? []} />
 
               <div className="action-row">
                 <button className="ghost-button" onClick={() => handleSave('draft')} type="button" disabled={isSaving}>
@@ -1818,6 +1830,7 @@ function ReportDetailCard({ report }: { report: MonthlyReport }) {
       <InfoBlock label="需要修正的事" value={report.data.reflection.fixes || '尚未填寫'} compact />
       <InfoBlock label="下月目標" value={report.data.reflection.nextMonthGoal || '尚未填寫'} compact />
       <ReviewHistoryPanel history={report.reviewHistory ?? []} compact />
+      <SubmissionHistoryPanel history={report.submissionHistory ?? []} compact />
       <div className="detail-action-row">
         <button className="ghost-button small" type="button" onClick={() => downloadReport(report.id, 'pdf')}>
           匯出 PDF
@@ -1854,6 +1867,37 @@ function ReviewHistoryPanel({
         </ul>
       ) : (
         <p className="empty-state">目前尚未有主管審核紀錄。</p>
+      )}
+    </div>
+  );
+}
+
+function SubmissionHistoryPanel({
+  history,
+  compact = false,
+}: {
+  history: SubmissionHistoryEntry[];
+  compact?: boolean;
+}) {
+  return (
+    <div className={clsx('history-panel', compact && 'compact')}>
+      <strong>送出與退回後重新送出紀錄</strong>
+      {history.length ? (
+        <ul>
+          {[...history].sort((left, right) => right.submittedAt.localeCompare(left.submittedAt)).map((item) => (
+            <li key={item.id}>
+              <div className="history-top">
+                <span>{formatDateTime(item.submittedAt)}</span>
+                <span className="status-badge status-submitted">
+                  {submissionActionLabels[item.action] ?? item.action}
+                </span>
+              </div>
+              <p>{item.userName}｜送出前狀態：{item.previousStatus ? statusLabels[item.previousStatus] : '新月報'}</p>
+            </li>
+          ))}
+        </ul>
+      ) : (
+        <p className="empty-state">目前尚未有重新送出紀錄。</p>
       )}
     </div>
   );

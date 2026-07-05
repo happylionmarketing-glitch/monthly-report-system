@@ -123,6 +123,18 @@ const reviewHistoryEntrySchema = z.object({
   reviewedAt: z.string(),
 });
 
+const submissionHistoryEntrySchema = z.object({
+  id: z.string().min(1),
+  action: z.enum(['submitted', 'resubmitted', 'resubmitted_after_revision']),
+  userId: z.string().min(1),
+  userName: z.string(),
+  actorId: z.string().min(1),
+  actorName: z.string(),
+  submittedAt: z.string(),
+  previousStatus: z.enum(['', 'draft', 'submitted', 'reviewed', 'needs_revision']),
+  month: z.string().regex(/^\d{4}-\d{2}$/),
+});
+
 const teacherReportSchema = z.object({
   id: z.string().optional().default(''),
   userId: z.string().min(1),
@@ -132,6 +144,7 @@ const teacherReportSchema = z.object({
   status: z.enum(['draft', 'submitted', 'reviewed', 'needs_revision']),
   reviewerNote: z.string().optional().default(''),
   reviewHistory: z.array(reviewHistoryEntrySchema).optional().default([]),
+  submissionHistory: z.array(submissionHistoryEntrySchema).optional().default([]),
   data: z.object({
     classAssignments: z.array(classAssignmentSchema),
     attendanceRecords: z.array(attendanceRecordSchema),
@@ -171,6 +184,7 @@ const adminReportSchema = z.object({
   status: z.enum(['draft', 'submitted', 'reviewed', 'needs_revision']),
   reviewerNote: z.string().optional().default(''),
   reviewHistory: z.array(reviewHistoryEntrySchema).optional().default([]),
+  submissionHistory: z.array(submissionHistoryEntrySchema).optional().default([]),
   data: z.object({
     attendanceRecords: z.array(attendanceRecordSchema),
     performanceMetrics: z.object({
@@ -202,7 +216,19 @@ const adminReportSchema = z.object({
 });
 
 function currentMonth() {
-  return new Date().toISOString().slice(0, 7);
+  return inferReportMonthBySubmissionDate(new Date());
+}
+
+function formatMonthKey(date) {
+  return `${date.getFullYear()}-${String(date.getMonth() + 1).padStart(2, '0')}`;
+}
+
+function inferReportMonthBySubmissionDate(date) {
+  const submittedAt = date instanceof Date && !Number.isNaN(date.getTime()) ? new Date(date) : new Date();
+  if (submittedAt.getDate() <= 10) {
+    submittedAt.setMonth(submittedAt.getMonth() - 1);
+  }
+  return formatMonthKey(submittedAt);
 }
 
 function average(values) {
@@ -302,6 +328,37 @@ function buildDashboard(month, reports, users) {
     followUps,
     leaderboard,
   };
+}
+
+function buildSubmissionHistory(existingReport, payload, targetUser, actorUser, submittedAt) {
+  const history = Array.isArray(existingReport?.submissionHistory)
+    ? [...existingReport.submissionHistory]
+    : Array.isArray(payload.submissionHistory)
+      ? [...payload.submissionHistory]
+      : [];
+  if (payload.status === 'draft') {
+    return history;
+  }
+
+  const action = existingReport?.status === 'needs_revision'
+    ? 'resubmitted_after_revision'
+    : history.length
+      ? 'resubmitted'
+      : 'submitted';
+
+  history.push({
+    id: `submission-${Date.now()}-${Math.random().toString(36).slice(2, 8)}`,
+    action,
+    userId: targetUser.id,
+    userName: targetUser.name,
+    actorId: actorUser.id,
+    actorName: actorUser.name,
+    submittedAt,
+    previousStatus: existingReport?.status ?? '',
+    month: inferReportMonthBySubmissionDate(new Date(submittedAt)),
+  });
+
+  return history;
 }
 
 function validatePayload(body) {
@@ -499,23 +556,28 @@ app.post('/api/reports', async (req, res) => {
   const db = await loadDatabase();
   const payload = parsed.data;
   const now = new Date().toISOString();
+  const submittedMonth = payload.status === 'draft' ? payload.month : inferReportMonthBySubmissionDate(new Date(now));
+  const targetUser = db.users.find((user) => user.id === payload.userId);
 
   if (currentUser.role !== 'manager' && payload.userId !== currentUser.id) {
     return res.status(403).json({ message: '沒有權限儲存這份月報' });
   }
 
-  const existingIndex = db.reports.findIndex((report) => report.userId === payload.userId && report.month === payload.month);
+  const existingIndex = db.reports.findIndex((report) => report.userId === payload.userId && report.month === submittedMonth);
+  const existingReport = existingIndex >= 0 ? db.reports[existingIndex] : null;
   const nextReport = scoreReport({
     ...payload,
-    id: payload.id || `r-${payload.month}-${payload.userId}`,
+    id: payload.id || existingReport?.id || `r-${submittedMonth}-${payload.userId}`,
+    month: submittedMonth,
     updatedAt: now,
     submittedAt: payload.status === 'draft'
       ? existingIndex >= 0
         ? db.reports[existingIndex].submittedAt
         : null
-      : existingIndex >= 0 && db.reports[existingIndex].submittedAt
-        ? db.reports[existingIndex].submittedAt
-        : now,
+      : now,
+    reviewerNote: payload.reviewerNote || existingReport?.reviewerNote || '',
+    reviewHistory: Array.isArray(payload.reviewHistory) ? payload.reviewHistory : existingReport?.reviewHistory || [],
+    submissionHistory: buildSubmissionHistory(existingReport, payload, targetUser ?? currentUser, currentUser, now),
   });
 
   if (existingIndex >= 0) {

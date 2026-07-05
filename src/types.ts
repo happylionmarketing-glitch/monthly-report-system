@@ -101,6 +101,18 @@ export interface ReviewHistoryEntry {
   reviewedAt: string;
 }
 
+export interface SubmissionHistoryEntry {
+  id: string;
+  action: 'submitted' | 'resubmitted' | 'resubmitted_after_revision';
+  userId: string;
+  userName: string;
+  actorId: string;
+  actorName: string;
+  submittedAt: string;
+  previousStatus: '' | ReportStatus;
+  month: string;
+}
+
 export interface TeacherReflection extends ReflectionBase {
   selfEvaluation: number;
   selfEvaluationReason: string;
@@ -150,6 +162,7 @@ export interface MonthlyReportBase {
   submittedAt: string | null;
   reviewerNote: string;
   reviewHistory: ReviewHistoryEntry[];
+  submissionHistory: SubmissionHistoryEntry[];
   scores: ReportScores;
 }
 

@@ -98,6 +98,20 @@ function reviewHistoryRows(history) {
   ]);
 }
 
+function submissionHistoryRows(history) {
+  const actionLabels = {
+    submitted: '首次送出',
+    resubmitted: '重新送出',
+    resubmitted_after_revision: '退回後重新送出',
+  };
+  return history.map((item) => [
+    item.submittedAt || '',
+    item.userName || '',
+    actionLabels[item.action] || item.action || '送出',
+    item.previousStatus || '新月報',
+  ]);
+}
+
 function signatureTable() {
   return makeTable(
     ['填表人', '主管審核', '簽核日期'],
@@ -225,6 +239,11 @@ function buildDocxBody(report) {
   });
 
   paragraphs.push(new Paragraph({ text: '簽核欄位', heading: HeadingLevel.HEADING_2, spacing: { before: 220, after: 120 } }));
+  if (report.submissionHistory?.length) {
+    paragraphs.push(new Paragraph({ text: '送出與退回後重新送出紀錄', heading: HeadingLevel.HEADING_2, spacing: { before: 220, after: 120 } }));
+    paragraphs.push(makeTable(['時間', '送出人', '動作', '送出前狀態'], submissionHistoryRows(report.submissionHistory)));
+  }
+
   paragraphs.push(signatureTable());
 
   if (report.reviewHistory?.length) {
@@ -353,6 +372,11 @@ export async function buildReportPdfBuffer(report) {
     });
 
     addPdfSection(doc, '簽核欄位', ['填表人：', '主管審核：', '簽核日期：']);
+
+    if (report.submissionHistory?.length) {
+      const submissionLines = report.submissionHistory.map((item) => `${item.submittedAt || ''} ｜ ${item.userName || ''} ｜ ${submissionHistoryRows([item])[0][2]} ｜ 送出前狀態：${item.previousStatus || '新月報'}`);
+      addPdfSection(doc, '送出與退回後重新送出紀錄', submissionLines);
+    }
 
     if (report.reviewHistory?.length) {
       const reviewLines = report.reviewHistory.map((item) => `${item.reviewedAt} ｜ ${item.reviewerName} ｜ ${item.status === 'reviewed' ? '已核准' : '退回修正'} ｜ ${item.reviewerNote || ''}`);

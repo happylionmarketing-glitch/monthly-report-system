@@ -808,6 +808,7 @@ export function createBlankReport(user, month) {
     submittedAt: null,
     reviewerNote: '',
     reviewHistory: [],
+    submissionHistory: [],
     scores: {
       performance: 0,
       selfEvaluation: 0,
@@ -844,6 +845,7 @@ function normalizeReport(report = {}, users) {
     submittedAt: typeof report.submittedAt === 'string' ? report.submittedAt : null,
     reviewerNote: normalizedReviewerNote,
     reviewHistory: normalizeReviewHistory(report.reviewHistory, fallbackReview),
+    submissionHistory: Array.isArray(report.submissionHistory) ? report.submissionHistory : [],
     scores: {
       performance: 0,
       selfEvaluation: 0,

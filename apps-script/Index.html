@@ -905,6 +905,14 @@
 
         <script>
       const tokenKey = 'monthly-report-auth-token';
+      function getDefaultReportMonth(date = new Date()) {
+        const localDate = new Date(date.getFullYear(), date.getMonth(), date.getDate());
+        if (localDate.getDate() <= 10) {
+          localDate.setMonth(localDate.getMonth() - 1);
+        }
+        return `${localDate.getFullYear()}-${String(localDate.getMonth() + 1).padStart(2, '0')}`;
+      }
+
       const state = {
         user: null,
         bootstrap: null,
@@ -915,7 +923,7 @@
         detailError: '',
         pendingReview: null,
         view: 'fill',
-        month: new Date().toISOString().slice(0, 7),
+        month: getDefaultReportMonth(),
         mustChangePassword: false,
         manageBranchFilter: '',
         manageRoleFilter: '',
@@ -947,6 +955,11 @@
           submitted: '已送出',
           reviewed: '已審核',
           needs_revision: '待修正',
+        },
+        submissionAction: {
+          submitted: '首次送出',
+          resubmitted: '重新送出',
+          resubmitted_after_revision: '退回後重新送出',
         },
         attendance: {
           sick: '病假',
@@ -2456,6 +2469,13 @@
             <div>${escapeHtml(item.reviewerNote || '')}</div>
           </li>
         `).join('');
+        const submissionHistory = (report.submissionHistory || []).slice().reverse().map((item) => `
+          <li class="list-item">
+            <strong>${escapeHtml(labels.submissionAction[item.action] || item.action || '送出')}</strong>
+            <small>${escapeHtml(item.submittedAt || '')}｜${escapeHtml(item.userName || report.userName || '')}</small>
+            <div>送出前狀態：${escapeHtml(labels.status[item.previousStatus] || item.previousStatus || '新月報')}</div>
+          </li>
+        `).join('');
         $('detailPanel').innerHTML = `
           <div class="list-item">
             <strong>${escapeHtml(report.userName)}</strong>
@@ -2473,6 +2493,10 @@
           <div class="card" style="margin-top: 12px;">
             <strong>主管審核紀錄</strong>
             <ul class="list" style="margin-top: 12px;">${history || '<li class="list-item">目前沒有審核紀錄。</li>'}</ul>
+          </div>
+          <div class="card" style="margin-top: 12px;">
+            <strong>送出與退回後重新送出紀錄</strong>
+            <ul class="list" style="margin-top: 12px;">${submissionHistory || '<li class="list-item">目前沒有重新送出紀錄。</li>'}</ul>
           </div>
           <div class="card" style="margin-top: 12px;">
             <strong>匯出檔案</strong>
@@ -2827,7 +2851,7 @@
               throw new Error('登入回傳異常，請再試一次');
             }
             localStorage.setItem(tokenKey, session.token);
-            state.month = new Date().toISOString().slice(0, 7);
+            state.month = getDefaultReportMonth();
             await loadAppForSession(session.token, session.user);
           } catch (error) {
             setLoginMessage(error.message || 'Login failed');
