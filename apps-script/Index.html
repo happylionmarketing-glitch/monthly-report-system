@@ -651,6 +651,7 @@
               <h4>承攬人聲明與自評</h4>
               <div class="form-grid" id="partTimeReflection"></div>
               <div class="row-actions" style="justify-content:flex-start; margin-top: 18px;">
+                <button class="ghost" type="button" id="partTimeDraftBtn">暫存草稿</button>
                 <button class="ghost" type="button" id="partTimeEditBtn">修改填報結果</button>
                 <button class="ghost" type="button" id="partTimePdfBtn">轉成PDF檔下載</button>
                 <button class="btn" type="button" id="partTimeSaveBtn">確認填報儲存</button>
@@ -3169,6 +3170,7 @@
           renderFill();
         };
         $('partTimeEditBtn').onclick = () => setMessage('已切換為可修改狀態，請直接調整欄位後按「確認填報儲存」。');
+        $('partTimeDraftBtn').onclick = () => saveCurrent('draft');
         $('partTimeSaveBtn').onclick = () => saveCurrent('submitted');
         $('partTimePdfBtn').onclick = async () => {
           try {
