@@ -409,12 +409,502 @@
         .grid-4, .grid-2, .chip-grid, .metrics-grid, .paired-fields, .confirm-grid, .score-row, .employee-card-grid { grid-template-columns: 1fr; }
         .user-list-table { min-width: 680px; }
       }
+
+      /* Visual refresh: blue HR dashboard style based on the provided UI mockups. */
+      :root {
+        --bg: #f5f9ff;
+        --panel: rgba(255, 255, 255, 0.96);
+        --panel-2: #ffffff;
+        --ink: #08245c;
+        --muted: #5b6f91;
+        --brand: #ff9f13;
+        --brand-2: #0775ff;
+        --line: rgba(14, 67, 154, 0.14);
+        --blue-950: #061f79;
+        --blue-900: #0637b7;
+        --blue-700: #0d6fe8;
+        --blue-100: #eaf4ff;
+        --orange-500: #ff9f13;
+        --orange-600: #ff6b00;
+        --green-500: #16b679;
+        --shadow-soft: 0 18px 46px rgba(18, 74, 137, 0.13);
+        --shadow-lift: 0 24px 70px rgba(18, 74, 137, 0.18);
+      }
+      body {
+        background:
+          radial-gradient(circle at 16% 12%, rgba(0, 118, 255, 0.12), transparent 32%),
+          radial-gradient(circle at 86% 18%, rgba(255, 178, 43, 0.16), transparent 24%),
+          linear-gradient(180deg, #f7fbff 0%, #fffdfa 48%, #edf7ff 100%);
+        color: var(--ink);
+      }
+      .login-shell {
+        background:
+          radial-gradient(circle at 76% 18%, rgba(0, 111, 255, 0.14), transparent 30%),
+          linear-gradient(145deg, #f8fbff, #fff8ec);
+      }
+      .login-card {
+        width: min(560px, 100%);
+        padding: 30px;
+        border: 1px solid rgba(14, 67, 154, 0.12);
+        border-radius: 28px;
+        box-shadow: var(--shadow-lift);
+      }
+      .login-card h1 {
+        color: #071f55;
+        font-size: clamp(2rem, 5vw, 3.2rem);
+        letter-spacing: -0.04em;
+      }
+      .login-card > .eyebrow::after {
+        content: " HR";
+        color: #ff9f13;
+      }
+      .shell {
+        background:
+          radial-gradient(circle at top right, rgba(0, 116, 255, 0.09), transparent 34%),
+          linear-gradient(180deg, rgba(245, 250, 255, 0.95), rgba(255, 250, 241, 0.74) 62%, #eef8ff);
+      }
+      .app-header {
+        position: sticky;
+        top: 0;
+        z-index: 20;
+        grid-template-columns: minmax(280px, 1fr) minmax(180px, 220px) auto minmax(150px, auto);
+        gap: 18px;
+        padding: 18px 28px;
+        overflow: hidden;
+        background:
+          linear-gradient(125deg, rgba(0, 93, 221, 0.92), rgba(5, 46, 177, 0.98) 44%, rgba(0, 24, 100, 0.98)),
+          radial-gradient(circle at 73% -30%, rgba(0, 152, 255, 0.54), transparent 36%);
+        border-bottom: 1px solid rgba(255, 255, 255, 0.12);
+        box-shadow: 0 16px 42px rgba(3, 42, 118, 0.25);
+        backdrop-filter: blur(14px);
+      }
+      .app-header::after {
+        content: "";
+        position: absolute;
+        inset: 0;
+        pointer-events: none;
+        background:
+          linear-gradient(145deg, transparent 0 63%, rgba(255, 255, 255, 0.08) 63% 70%, transparent 70%),
+          radial-gradient(circle at 8% 0%, rgba(255, 255, 255, 0.13), transparent 22%);
+      }
+      .app-header > * {
+        position: relative;
+        z-index: 1;
+      }
+      .app-header .brand {
+        display: grid;
+        grid-template-columns: 58px minmax(0, 1fr);
+        column-gap: 14px;
+        align-items: center;
+      }
+      .app-header .brand::before {
+        content: "獅";
+        display: grid;
+        place-items: center;
+        width: 54px;
+        height: 54px;
+        border-radius: 18px;
+        color: #0640b2;
+        font-weight: 900;
+        font-size: 1.55rem;
+        background: linear-gradient(145deg, #ffffff, #cfe8ff);
+        box-shadow: inset 0 -4px 10px rgba(6, 64, 178, 0.15), 0 10px 22px rgba(0, 0, 0, 0.14);
+      }
+      .app-header .brand .eyebrow,
+      .app-header .brand h1,
+      .app-header .brand p {
+        grid-column: 2;
+      }
+      .app-header .brand .eyebrow {
+        color: #fff;
+        letter-spacing: .04em;
+        font-size: 1.04rem;
+        font-weight: 900;
+      }
+      .app-header .brand .eyebrow::after {
+        content: " HR";
+        color: #ffb324;
+      }
+      .app-header .brand h1 {
+        color: #fff;
+        font-size: clamp(1.45rem, 2.4vw, 2.25rem);
+        letter-spacing: -0.03em;
+        line-height: 1.1;
+      }
+      .app-header .brand p {
+        color: rgba(255, 255, 255, 0.82);
+        font-weight: 700;
+      }
+      .eyebrow {
+        color: #ff8e00;
+        font-weight: 900;
+        letter-spacing: .1em;
+      }
+      .app-header .field span {
+        color: rgba(255, 255, 255, 0.86);
+        font-weight: 800;
+      }
+      .app-header .field input {
+        min-height: 46px;
+        border: 1px solid rgba(255, 255, 255, 0.28);
+        border-radius: 14px;
+        background: rgba(0, 45, 148, 0.34);
+        color: #fff;
+        font-weight: 800;
+        box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.18);
+      }
+      .nav {
+        align-items: center;
+        justify-content: center;
+        gap: 10px;
+      }
+      .nav button {
+        min-height: 44px;
+        border: 1px solid rgba(255, 255, 255, 0.22);
+        border-radius: 12px;
+        background: linear-gradient(180deg, rgba(255, 255, 255, 0.16), rgba(255, 255, 255, 0.08));
+        color: #fff;
+        font-weight: 800;
+        box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.17), 0 10px 20px rgba(0, 28, 99, 0.16);
+        transition: transform .16s ease, box-shadow .16s ease, background .16s ease;
+      }
+      .nav button:hover,
+      .ghost:hover,
+      .btn:hover {
+        transform: translateY(-1px);
+      }
+      .nav button.active {
+        border-color: rgba(255, 183, 51, 0.88);
+        background: linear-gradient(135deg, #ffd15f, #ff9e14 54%, #ff7300);
+        color: #fff;
+        box-shadow: 0 14px 28px rgba(255, 134, 0, 0.28);
+      }
+      .user-strip {
+        color: #fff;
+        font-weight: 800;
+      }
+      .app-header .user-strip .muted {
+        color: rgba(255, 255, 255, 0.78);
+      }
+      .user-strip .ghost {
+        background: #fff;
+        color: #07328d;
+        border: 1px solid rgba(255, 255, 255, 0.72);
+        font-weight: 900;
+        box-shadow: 0 12px 24px rgba(0, 26, 92, 0.2);
+      }
+      .main {
+        width: min(100%, 1680px);
+        margin: 0 auto;
+        padding: 30px;
+        gap: 22px;
+      }
+      .topbar {
+        position: relative;
+        min-height: 132px;
+        align-items: center;
+        padding: 28px 32px;
+        border: 1px solid rgba(14, 67, 154, 0.1);
+        border-radius: 30px;
+        background:
+          radial-gradient(circle at 84% 24%, rgba(255, 171, 43, 0.13), transparent 24%),
+          linear-gradient(145deg, rgba(255, 255, 255, 0.98), rgba(249, 253, 255, 0.96));
+        box-shadow: var(--shadow-soft);
+      }
+      .topbar h2 {
+        color: #071f55;
+        font-size: clamp(2rem, 4vw, 3rem);
+        line-height: 1.05;
+        letter-spacing: -0.04em;
+      }
+      .topbar .badge {
+        padding: 12px 16px;
+        background: #fff1df;
+        color: #ff6200;
+        border: 1px solid rgba(255, 126, 22, 0.18);
+        font-size: .95rem;
+      }
+      .message {
+        display: flex;
+        align-items: center;
+        gap: 14px;
+        min-height: 54px;
+        margin-top: 0;
+        padding: 14px 20px;
+        border-radius: 16px;
+        border: 1px solid rgba(14, 67, 154, 0.12);
+        box-shadow: 0 12px 28px rgba(18, 74, 137, 0.08);
+        font-weight: 800;
+      }
+      .message::before {
+        display: grid;
+        place-items: center;
+        flex: 0 0 36px;
+        width: 36px;
+        height: 36px;
+        border-radius: 999px;
+        color: #fff;
+        font-weight: 900;
+      }
+      .message.ok {
+        background: linear-gradient(135deg, #effff7, #eafffb);
+        border-color: rgba(22, 182, 121, 0.34);
+        color: #06764d;
+      }
+      .message.ok::before { content: "✓"; background: linear-gradient(135deg, #18c987, #0c9f67); }
+      .message.err {
+        background: linear-gradient(135deg, #fff3f1, #fffafa);
+        border-color: rgba(214, 67, 48, 0.22);
+        color: #a8372a;
+      }
+      .message.err::before { content: "!"; background: linear-gradient(135deg, #ff7b5f, #cf3027); }
+      .panel {
+        border: 1px solid rgba(14, 67, 154, 0.12);
+        border-radius: 22px;
+        background: rgba(255, 255, 255, 0.96);
+        box-shadow: var(--shadow-soft);
+      }
+      .section-title h3,
+      #managePanel h3,
+      #fillHeading {
+        color: #06327f;
+        font-size: 1.5rem;
+        letter-spacing: -0.02em;
+      }
+      .card,
+      details.card,
+      .list-item,
+      .confirm-item {
+        border: 1px solid rgba(14, 111, 232, 0.16);
+        border-radius: 16px;
+        background:
+          linear-gradient(145deg, rgba(255, 255, 255, 0.97), rgba(250, 253, 255, 0.92));
+        box-shadow: 0 12px 28px rgba(18, 74, 137, 0.08);
+      }
+      .card strong,
+      .rail-item strong,
+      details.card summary {
+        color: #08245c;
+        font-weight: 900;
+      }
+      .card > strong:first-child,
+      details.card summary {
+        display: flex;
+        align-items: center;
+        gap: 10px;
+      }
+      .card > strong:first-child::before,
+      details.card summary::before {
+        content: "";
+        display: inline-grid;
+        place-items: center;
+        flex: 0 0 32px;
+        width: 32px;
+        height: 32px;
+        border-radius: 11px;
+        background: linear-gradient(135deg, #1489ff, #0b49cb);
+        box-shadow: 0 10px 20px rgba(12, 95, 221, 0.2);
+      }
+      #dashboardPanel .context-rail .card:nth-child(1) { background: linear-gradient(145deg, #f4f9ff, #ffffff); }
+      #dashboardPanel .context-rail .card:nth-child(2),
+      #guidePanel .card:nth-of-type(2) { background: linear-gradient(145deg, #fff8ef, #ffffff); border-color: rgba(255, 143, 0, 0.24); }
+      #dashboardPanel .context-rail .card:nth-child(3),
+      #dashboardPanel .content-stack > .card.manager-only,
+      #guidePanel .card:nth-of-type(3) { background: linear-gradient(145deg, #effffb, #ffffff); border-color: rgba(24, 183, 148, 0.24); }
+      #dashboardPanel .content-stack .grid-2:nth-child(1) .card:nth-child(2),
+      #dashboardPanel .content-stack .grid-2:nth-child(4) .card:nth-child(1) { background: linear-gradient(145deg, #f6f1ff, #ffffff); border-color: rgba(121, 82, 220, 0.22); }
+      #guidePanel .grid-2 .card:nth-child(1) { background: linear-gradient(145deg, #fff6e8, #ffffff); border-color: rgba(255, 158, 20, 0.28); }
+      #guidePanel .grid-2 .card:nth-child(2) { background: linear-gradient(145deg, #eff7ff, #ffffff); border-color: rgba(13, 111, 232, 0.24); }
+      .badge {
+        border: 1px solid rgba(255, 145, 0, 0.22);
+        background: #fff1df;
+        color: #ff6200;
+        font-weight: 900;
+      }
+      .status-reviewed { background: #eafff4; color: #087b4d; border-color: rgba(22, 182, 121, .24); }
+      .status-needs_revision { background: #fff1ef; color: #a83428; border-color: rgba(214, 67, 48, .2); }
+      .status-submitted { background: #fff7e8; color: #b75b00; border-color: rgba(255, 159, 19, .25); }
+      .status-draft { background: #eef4ff; color: #315f9b; border-color: rgba(13, 111, 232, .18); }
+      .field span,
+      label.field span {
+        color: #08245c;
+        font-weight: 800;
+      }
+      .field input,
+      .field textarea,
+      .field select,
+      .table-scroll input,
+      .table-scroll select {
+        border: 1px solid #cfe0fb;
+        border-radius: 12px;
+        background: rgba(255, 255, 255, 0.98);
+        color: #0b2f75;
+        box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.82), 0 1px 0 rgba(14, 67, 154, 0.04);
+      }
+      .field input[type="checkbox"],
+      input[type="checkbox"] {
+        width: 18px;
+        min-width: 18px;
+        height: 18px;
+        padding: 0;
+        box-shadow: none;
+      }
+      .field input:focus,
+      .field textarea:focus,
+      .field select:focus,
+      .table-scroll input:focus,
+      .table-scroll select:focus {
+        outline: 0;
+        border-color: #2689ff;
+        box-shadow: 0 0 0 4px rgba(38, 137, 255, 0.13);
+      }
+      .btn {
+        border: 0;
+        background: linear-gradient(135deg, #ffc247, #ff9f13 44%, #ff6500);
+        color: #fff;
+        font-weight: 900;
+        box-shadow: 0 12px 24px rgba(255, 126, 0, 0.24);
+      }
+      .ghost {
+        border: 1px solid rgba(13, 111, 232, 0.14);
+        background: linear-gradient(135deg, #eff8ff, #dff0ff);
+        color: #0640a0;
+        font-weight: 850;
+      }
+      .row-actions .ghost:last-child:not(:first-child) {
+        background: linear-gradient(135deg, #fff5e8, #ffe6c4);
+        color: #bb5700;
+        border-color: rgba(255, 145, 0, 0.2);
+      }
+      table {
+        border-collapse: separate;
+        border-spacing: 0;
+      }
+      th {
+        color: #08245c;
+        font-weight: 900;
+        background: rgba(235, 246, 255, 0.7);
+      }
+      th:first-child { border-top-left-radius: 12px; }
+      th:last-child { border-top-right-radius: 12px; }
+      th, td {
+        border-bottom: 1px solid rgba(14, 67, 154, 0.11);
+      }
+      .workbench {
+        gap: 18px;
+      }
+      .context-rail {
+        top: 118px;
+      }
+      #managePanel > .grid-2,
+      #usersPanel .user-admin-layout {
+        grid-template-columns: minmax(0, 1.05fr) minmax(380px, 0.95fr);
+        gap: 18px;
+      }
+      #managePanel > .grid-2 > .card:first-child,
+      #usersPanel .user-admin-layout > div:first-child {
+        background: linear-gradient(145deg, #f5faff, #ffffff);
+        border-color: rgba(13, 111, 232, 0.22);
+      }
+      #usersPanel .user-admin-layout > div:first-child,
+      #userListPanel,
+      .user-list-shell {
+        min-width: 0;
+        max-width: 100%;
+      }
+      .user-list-shell {
+        overflow-x: auto;
+        overflow-y: hidden;
+      }
+      .user-list-table {
+        width: max-content;
+      }
+      #managePanel > .grid-2 > .card:nth-child(2),
+      .user-editor-card {
+        padding: 16px;
+        border: 1px solid rgba(255, 143, 0, 0.24);
+        border-radius: 16px;
+        background: linear-gradient(145deg, #fff7ec, #ffffff);
+        box-shadow: 0 12px 28px rgba(255, 150, 0, 0.07);
+      }
+      #partTimeSettingsPanel .card {
+        padding: 28px;
+        border-color: rgba(13, 111, 232, 0.18);
+      }
+      #partTimeSettingsList input {
+        min-height: 44px;
+        width: 100%;
+        padding: 10px 12px;
+        border: 1px solid #cfe0fb;
+        border-radius: 12px;
+        background: rgba(255, 255, 255, 0.98);
+        color: #0b2f75;
+        font: inherit;
+      }
+      .employee-card {
+        border: 1px solid rgba(255, 143, 0, 0.24);
+        background: linear-gradient(145deg, #fff6ea, #ffffff);
+      }
+      .employee-card .score {
+        color: #c6392a;
+      }
+      .modal-card {
+        border: 1px solid rgba(14, 67, 154, 0.16);
+        box-shadow: 0 28px 90px rgba(4, 30, 82, 0.32);
+      }
+      .spinner {
+        border-color: rgba(13, 111, 232, 0.18);
+        border-top-color: #0d6fe8;
+      }
+      .muted {
+        color: var(--muted);
+      }
+      @media (max-width: 1180px) {
+        .app-header {
+          grid-template-columns: 1fr;
+        }
+        .nav {
+          justify-content: flex-start;
+        }
+        #managePanel > .grid-2,
+        #usersPanel .user-admin-layout {
+          grid-template-columns: 1fr;
+        }
+      }
+      @media (max-width: 760px) {
+        .main {
+          padding: 18px 14px;
+        }
+        .app-header {
+          padding: 16px;
+        }
+        .app-header .brand {
+          grid-template-columns: 44px minmax(0, 1fr);
+        }
+        .app-header .brand::before {
+          width: 42px;
+          height: 42px;
+          border-radius: 14px;
+          font-size: 1.2rem;
+        }
+        .topbar {
+          min-height: 0;
+          padding: 22px;
+          border-radius: 22px;
+        }
+        .panel {
+          padding: 14px;
+        }
+        .nav button {
+          width: 100%;
+        }
+      }
     </style>
   </head>
   <body>
     <div id="loginView" class="login-shell">
       <div class="login-card">
-        <div class="eyebrow">Lion Learning</div>
+        <div class="eyebrow">LION LEARN</div>
         <h1>月報系統登入</h1>
         <p class="muted">請使用帳號與密碼登入，進入英語老師與行政老師共用的月報填報系統。</p>
         <form id="loginForm">
@@ -439,7 +929,7 @@
     <div id="appView" class="shell hidden">
       <header class="app-header">
         <div class="brand">
-          <div class="eyebrow">Lion Learning</div>
+          <div class="eyebrow">LION LEARN</div>
           <h1 id="systemName">月報填報系統</h1>
           <p id="branchName" class="muted"></p>
         </div>
