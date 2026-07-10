@@ -1141,10 +1141,10 @@
               <h4>承攬人聲明與自評</h4>
               <div class="form-grid" id="partTimeReflection"></div>
               <div class="row-actions" style="justify-content:flex-start; margin-top: 18px;">
-                <button class="ghost" type="button" id="partTimeDraftBtn">暫存草稿</button>
-                <button class="ghost" type="button" id="partTimeEditBtn">修改填報結果</button>
+                <button class="ghost" type="button" id="partTimeDraftBtn">暫存月報</button>
+                <button class="ghost" type="button" id="partTimeEditBtn">修改月報</button>
                 <button class="ghost" type="button" id="partTimePdfBtn">轉成PDF檔下載</button>
-                <button class="btn" type="button" id="partTimeSaveBtn">確認填報儲存</button>
+                <button class="btn" type="button" id="partTimeSaveBtn">送出月報</button>
               </div>
             </div>
 
@@ -1162,9 +1162,12 @@
               <div class="form-grid" id="assistantReflection"></div>
             </div>
 
+            <div id="fillReviewHistoryCard" class="card hidden"></div>
+
             <div id="standardReportActions" class="row-actions" style="margin-top: 18px;">
-              <button class="ghost" type="button" id="saveDraftBtn">儲存草稿</button>
-              <button class="btn" type="button" id="submitBtn">正式送出</button>
+              <button class="ghost" type="button" id="saveDraftBtn">暫存月報</button>
+              <button class="ghost" type="button" id="editReportBtn">修改月報</button>
+              <button class="btn" type="button" id="submitBtn">送出月報</button>
             </div>
             </div>
           </div>
@@ -2356,10 +2359,42 @@
         }
       }
 
+      function renderFillReviewHistory() {
+        const card = $('fillReviewHistoryCard');
+        if (!card || !state.report) return;
+        const history = Array.isArray(state.report.reviewHistory) ? state.report.reviewHistory : [];
+        if (!history.length) {
+          card.classList.add('hidden');
+          card.innerHTML = '';
+          return;
+        }
+
+        const statusText = state.report.status === 'needs_revision'
+          ? '本月報已由主管退回，請依下列審核意見修改後重新送出。'
+          : state.report.status === 'reviewed'
+            ? '本月報已通過主管審核，歷次審核意見保留如下。'
+            : '本月報已重新送出，主管歷次審核意見仍會完整保留。';
+        const items = history.slice().reverse().map((item, index) => `
+          <li class="list-item">
+            <strong>第 ${history.length - index} 次審核｜${escapeHtml(labels.status[item.status] || item.status || '')}</strong>
+            <small>${escapeHtml(item.reviewedAt || '')}｜${escapeHtml(item.reviewerName || '主管')}</small>
+            <div style="margin-top:6px; white-space:pre-wrap;">${escapeHtml(item.reviewerNote || '本次未填寫文字意見')}</div>
+          </li>
+        `).join('');
+
+        card.classList.remove('hidden');
+        card.innerHTML = `
+          <strong>主管審核意見與歷史</strong>
+          <p class="muted" style="margin:8px 0 12px; line-height:1.7;">${statusText}每次審核都會新增一筆，不會覆蓋前一次內容。</p>
+          <ul class="list">${items}</ul>
+        `;
+      }
+
       function renderFill() {
         if (!state.report) return;
         renderSummary();
         renderReferenceFormContext();
+        renderFillReviewHistory();
         $('partTimeSection').classList.toggle('hidden', !isPartTimeTeacher());
         $('assistantSection').classList.toggle('hidden', !isAssistantUser());
         $('standardReportActions').classList.toggle('hidden', isPartTimeTeacher());
@@ -2575,8 +2610,32 @@
         const classCount = (data.classAssignments || []).length;
         const studentCount = (data.classAssignments || []).reduce((sum, item) => sum + Number(item.studentCount || 0), 0);
         const checklist = metrics.formChecklist || {};
-        const rows = report.role === 'teacher'
-          ? [
+        let rows;
+        if (isPartTimeReport(report) || isPartTimeTeacher()) {
+          const contract = data.partTimeContract || {};
+          rows = [
+            ['填報月份', report.month || state.month],
+            ['填表人', currentUser().name],
+            ['執行成果紀錄', `${(data.partTimeRecords || []).length} 筆`],
+            ['授課時數', contract.teachingHours || 0],
+            ['非教學教務時數', contract.adminHours || 0],
+            ['本月應支領報酬', contract.totalCompensation || 0],
+            ['合約到期日', contract.contractEndDate || '未設定'],
+            ['自評分數', reflection.selfEvaluation || 0],
+          ];
+        } else if (isAssistantReport(report) || isAssistantUser()) {
+          const timesheet = data.assistantTimesheet || {};
+          rows = [
+            ['填報月份', report.month || state.month],
+            ['填表人', currentUser().name],
+            ['本月時數紀錄', `${(timesheet.records || []).length} 筆`],
+            ['本月總上班時數', timesheet.totalHours || 0],
+            ['自評分數', reflection.selfEvaluation || 0],
+            ['本月工作成果', reflection.wins || '未填寫'],
+            ['本月待改善事項', reflection.fixes || '未填寫'],
+          ];
+        } else if (['teacher', 'tutor'].includes(report.role)) {
+          rows = [
             ['填報月份', report.month || state.month],
             ['填表人', currentUser().name],
             ['帶班班級 / 人數', `${classCount} 班 / ${studentCount} 人`],
@@ -2586,8 +2645,9 @@
             ['試讀 / 進班', `${metrics.trialStudents || 0} / ${metrics.convertedStudents || 0}`],
             ['問班學生數', metrics.inquiryStudentCount || 0],
             ['自評分數', reflection.selfEvaluation || 0],
-          ]
-          : [
+          ];
+        } else {
+          rows = [
             ['填報月份', report.month || state.month],
             ['填表人', currentUser().name],
             ['進班人數', metrics.entryStudentCount ?? metrics.newEnrollments ?? 0],
@@ -2598,6 +2658,7 @@
             ['基本業務完成', [metrics.posterCompleted, checklist.overdueNotice, checklist.weeklyHeadcount, checklist.monthEndHeadcount, checklist.tuitionBag].filter(Boolean).length + ' / 5'],
             ['自評 / 執行力', `${reflection.selfEvaluation || 0} / ${reflection.execution || 0}`],
           ];
+        }
         $('submitConfirmContent').innerHTML = `
           <div class="confirm-grid">
             ${rows.map(([label, value]) => `<div class="confirm-item"><strong>${escapeHtml(label)}</strong><span>${escapeHtml(value)}</span></div>`).join('')}
@@ -2975,7 +3036,7 @@
           </div>
           ${renderFullReportContent(report)}
           <div class="card" style="margin-top: 12px;">
-            <label class="field"><span>審核意見</span><textarea id="reviewNote">${escapeHtml(report.reviewerNote || '')}</textarea></label>
+            <label class="field"><span>本次審核意見（送出後新增一筆，不覆蓋既有紀錄）</span><textarea id="reviewNote" placeholder="請填寫本次審核意見"></textarea></label>
             <div class="row-actions">
               <button class="ghost" id="needRevisionBtn" type="button">退回修正</button>
               <button class="btn" id="reviewBtn" type="button">通過審核</button>
@@ -3410,9 +3471,12 @@
               state.pendingReview.note,
             );
             const doneText = state.pendingReview.status === 'reviewed' ? '月報已通過審核。' : '月報已退回修正。';
+            const notificationText = state.detail && state.detail.notificationSummary
+              ? ` ${state.detail.notificationSummary.message || ''}`
+              : '';
             hideReviewConfirm();
             state.pendingReview = null;
-            setMessage(doneText);
+            setMessage(`${doneText}${notificationText}`);
             await refreshAll();
           } catch (error) {
             setReviewConfirmMessage(error.message || '審核送出失敗', 'err');
@@ -3659,9 +3723,9 @@
           state.report.data.assistantTimesheet.records.push({ id: `assistant-${Date.now()}`, date: '', weekday: '', description: '', timeRange: '', hours: 0 });
           renderFill();
         };
-        $('partTimeEditBtn').onclick = () => setMessage('已切換為可修改狀態，請直接調整欄位後按「確認填報儲存」。');
+        $('partTimeEditBtn').onclick = () => setMessage('已切換為可修改狀態，請直接調整欄位後按「暫存月報」或「送出月報」。');
         $('partTimeDraftBtn').onclick = () => saveCurrent('draft');
-        $('partTimeSaveBtn').onclick = () => saveCurrent('submitted');
+        $('partTimeSaveBtn').onclick = () => showSubmitConfirm();
         $('partTimePdfBtn').onclick = async () => {
           try {
             state.report = prepareReportForSave('draft');
@@ -3682,6 +3746,7 @@
           renderDetail();
         };
         $('saveDraftBtn').onclick = () => saveCurrent('draft');
+        $('editReportBtn').onclick = () => setMessage('已切換為可修改狀態，請直接調整欄位後按「暫存月報」或「送出月報」。');
         $('submitBtn').onclick = () => showSubmitConfirm();
         $('continueEditBtn').onclick = () => hideSubmitConfirm();
         $('confirmSubmitBtn').onclick = async () => {

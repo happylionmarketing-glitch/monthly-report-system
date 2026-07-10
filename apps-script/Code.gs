@@ -700,10 +700,20 @@ function saveReport(token, payload) {
 
   const now = new Date().toISOString();
   const isDraftSave = payload.status === 'draft';
+  const requestedReportId = String(payload && payload.id ? payload.id : '');
+  const sourceReportIndex = requestedReportId
+    ? state.reports.findIndex((item) => item.id === requestedReportId && item.userId === userId)
+    : -1;
+  const sourceReport = sourceReportIndex >= 0 ? state.reports[sourceReportIndex] : null;
+  const isReturnedResubmission = !isDraftSave && sourceReport && sourceReport.status === 'needs_revision';
   const month = isDraftSave
     ? normalizeMonthKey_(payload.month || currentMonth_())
-    : inferReportMonthBySubmittedAt_(new Date(now));
-  const existingIndex = state.reports.findIndex((item) => item.userId === userId && normalizeMonthKey_(item.month) === month);
+    : isReturnedResubmission
+      ? normalizeMonthKey_(sourceReport.month)
+      : inferReportMonthBySubmittedAt_(new Date(now));
+  const existingIndex = isReturnedResubmission
+    ? sourceReportIndex
+    : state.reports.findIndex((item) => item.userId === userId && normalizeMonthKey_(item.month) === month);
   const existing = existingIndex >= 0 ? state.reports[existingIndex] : null;
   const submissionHistory = buildSubmissionHistory_(existing, payload, targetUser, session.user, now);
   const normalizedPayload = JSON.parse(JSON.stringify(payload || {}));
@@ -760,6 +770,12 @@ function reviewReport(token, reportId, status, reviewerNote) {
   if (session.user.role !== 'manager') {
     throw new Error('只有主管可以審核月報');
   }
+  if (['reviewed', 'needs_revision'].indexOf(String(status || '')) < 0) {
+    throw new Error('審核狀態不正確');
+  }
+  if (status === 'needs_revision' && !String(reviewerNote || '').trim()) {
+    throw new Error('退回修正時請填寫主管審核意見');
+  }
 
   const state = loadState_();
   const index = state.reports.findIndex((item) => item.id === reportId);
@@ -788,8 +804,14 @@ function reviewReport(token, reportId, status, reviewerNote) {
     submittedAt: previous.submittedAt || now,
   }, state.users);
 
+  const reviewedReport = state.reports[index];
+  const reportUser = state.users.find((user) => user.id === reviewedReport.userId) || null;
+  const notificationSummary = notifyReportUserForReviewResult_(state, reviewedReport, reportUser, session.user);
   saveState_(state);
-  return jsonResult_(decorateReport_(state.reports[index], state.users));
+  return jsonResult_({
+    ...decorateReport_(reviewedReport, state.users),
+    notificationSummary,
+  });
 }
 
 function exportReport(token, reportId, format) {
@@ -903,7 +925,9 @@ function buildSubmissionHistory_(existing, payload, targetUser, actorUser, submi
     actorName: actorUser.name || actorUser.account || actorUser.id,
     submittedAt,
     previousStatus: existing ? existing.status : '',
-    month: inferReportMonthBySubmittedAt_(new Date(submittedAt)),
+    month: existing && existing.status === 'needs_revision'
+      ? normalizeMonthKey_(existing.month)
+      : inferReportMonthBySubmittedAt_(new Date(submittedAt)),
   });
 
   return history;
@@ -1721,6 +1745,122 @@ function notifyManagersForSubmittedReport_(state, report, reportUser, actorUser)
     `Email：成功 ${summary.email.sent} 筆，失敗 ${summary.email.failed} 筆，未寄出 ${summary.email.skipped} 筆。`,
     `LINE：成功 ${summary.line.sent} 筆，失敗 ${summary.line.failed} 筆，未寄出 ${summary.line.skipped} 筆。`,
   ].join(' ');
+  return summary;
+}
+
+function notifyReportUserForReviewResult_(state, report, reportUser, reviewerUser) {
+  const resultLabel = report.status === 'reviewed' ? '審核通過' : '退回修正';
+  const detailUrl = getWebAppUrl_();
+  const reviewerNote = String(report.reviewerNote || '').trim();
+  const subject = `[${META.schoolTitle}] ${report.month} 月報${resultLabel}`;
+  const lineMessage = [
+    `${META.schoolTitle}｜月報審核結果`,
+    `${reportUser ? reportUser.name : '老師'}您好，您的 ${report.month} 月報已${resultLabel}。`,
+    `審核主管：${reviewerUser.name || reviewerUser.account || '主管'}`,
+    reviewerNote ? `審核意見：${reviewerNote}` : '審核意見：本次未填寫文字意見',
+    report.status === 'needs_revision' ? '請登入月報系統查看原月報、完成修改後重新送出。' : '本次月報審核流程已完成。',
+    detailUrl ? `月報系統：${detailUrl}` : '',
+  ].filter(Boolean).join('\n');
+  const summary = {
+    ok: true,
+    line: { sent: 0, failed: 0, skipped: 0 },
+    message: '',
+  };
+
+  if (!reportUser) {
+    summary.ok = false;
+    summary.line.skipped += 1;
+    appendNotificationLog_(state, {
+      report,
+      senderUser: reviewerUser,
+      receiverUser: null,
+      channel: 'line',
+      target: '',
+      status: 'skipped',
+      subject,
+      message: lineMessage,
+      errorMessage: '找不到月報填報者帳號',
+    });
+  } else if (reportUser.notifyByLine !== true) {
+    summary.ok = false;
+    summary.line.skipped += 1;
+    appendNotificationLog_(state, {
+      report,
+      senderUser: reviewerUser,
+      receiverUser: reportUser,
+      channel: 'line',
+      target: reportUser.lineTargetId || '',
+      status: 'skipped',
+      subject,
+      message: lineMessage,
+      errorMessage: '填報者尚未啟用接收 LINE 通知',
+    });
+  } else if (!String(reportUser.lineTargetId || '').trim()) {
+    summary.ok = false;
+    summary.line.skipped += 1;
+    appendNotificationLog_(state, {
+      report,
+      senderUser: reviewerUser,
+      receiverUser: reportUser,
+      channel: 'line',
+      target: '',
+      status: 'skipped',
+      subject,
+      message: lineMessage,
+      errorMessage: '填報者尚未設定 LINE Target ID',
+    });
+  } else {
+    const lineToken = getLineChannelAccessToken_();
+    if (!lineToken) {
+      summary.ok = false;
+      summary.line.skipped += 1;
+      appendNotificationLog_(state, {
+        report,
+        senderUser: reviewerUser,
+        receiverUser: reportUser,
+        channel: 'line',
+        target: reportUser.lineTargetId,
+        status: 'skipped',
+        subject,
+        message: lineMessage,
+        errorMessage: '尚未設定 LINE_CHANNEL_ACCESS_TOKEN',
+      });
+    } else {
+      try {
+        sendLinePushMessage_(lineToken, reportUser.lineTargetId, lineMessage);
+        summary.line.sent += 1;
+        appendNotificationLog_(state, {
+          report,
+          senderUser: reviewerUser,
+          receiverUser: reportUser,
+          channel: 'line',
+          target: reportUser.lineTargetId,
+          status: 'sent',
+          subject,
+          message: lineMessage,
+          errorMessage: '',
+        });
+      } catch (error) {
+        summary.ok = false;
+        summary.line.failed += 1;
+        appendNotificationLog_(state, {
+          report,
+          senderUser: reviewerUser,
+          receiverUser: reportUser,
+          channel: 'line',
+          target: reportUser.lineTargetId,
+          status: 'failed',
+          subject,
+          message: lineMessage,
+          errorMessage: error && error.message ? error.message : String(error),
+        });
+      }
+    }
+  }
+
+  summary.message = summary.line.sent
+    ? `已用 LINE 通知 ${reportUser.name || reportUser.account || '填報者'}審核結果。`
+    : `LINE 審核結果通知未送出：${summary.line.failed ? '發送失敗' : '請確認填報者的通知設定與 LINE Target ID'}。`;
   return summary;
 }
 

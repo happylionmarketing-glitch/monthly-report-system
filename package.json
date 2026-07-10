@@ -8,6 +8,7 @@
     "dev:client": "vite",
     "dev:server": "node --watch server/index.mjs",
     "build": "tsc -b && vite build",
+    "test:apps-script-workflow": "node tools/verify-apps-script-workflow.cjs",
     "start": "node server/index.mjs",
     "lint": "eslint .",
     "preview": "vite preview"
